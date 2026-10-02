@@ -1,5 +1,5 @@
 -- Bitácora de Obra — esquema SQLite (opción liviana si el hosting DGC corre backend propio)
--- Actualizado al: 2026-10-01 (v8: perfiles, flujo de aprobación, datos oficiales)
+-- Actualizado al: 2026-10-02 (v10: titular/suplente, correos, motivo de resolución, avisos leídos)
 --
 -- SQLite no tiene seguridad por filas: el alcance por contrato lo impone repositorio.py
 -- (toda consulta filtra por los contratos asignados a la sesión). La base, por su parte,
@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS Contrato (
   Nombre          TEXT NOT NULL CHECK (length(Nombre) BETWEEN 1 AND 150),
   UnidadLabel     TEXT NOT NULL DEFAULT '' CHECK (length(UnidadLabel) <= 50),
   InspectorNombre TEXT NOT NULL DEFAULT '' CHECK (length(InspectorNombre) <= 150),
+  CorreoAprobador TEXT NOT NULL DEFAULT '' CHECK (length(CorreoAprobador) <= 254),     -- a esta dirección se abre el aviso (mailto:)
   Activo          INTEGER NOT NULL DEFAULT 1 CHECK (Activo IN (0, 1)),
   CreadoEn        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS Contrato (
 CREATE TABLE IF NOT EXISTS UsuarioContrato (            -- contratos asignados (IF y VALIDADOR)
   UsuarioId  TEXT NOT NULL REFERENCES Usuario(Id),
   ContratoId TEXT NOT NULL REFERENCES Contrato(Id),
+  RolContrato TEXT NOT NULL DEFAULT 'titular' CHECK (RolContrato IN ('titular', 'suplente')),   -- un IF suele tener 2: titular y suplente
   Activo     INTEGER NOT NULL DEFAULT 1 CHECK (Activo IN (0, 1)),
   PRIMARY KEY (UsuarioId, ContratoId)
 );
@@ -172,7 +174,24 @@ CREATE TABLE IF NOT EXISTS Problematica (
   AutorId          TEXT NOT NULL REFERENCES Usuario(Id),
   CreadoEn         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ResueltaEn       TEXT NULL,
-  IsDeleted        INTEGER NOT NULL DEFAULT 0 CHECK (IsDeleted IN (0, 1))
+  ResolucionTexto  TEXT NULL CHECK (ResolucionTexto IS NULL OR length(ResolucionTexto) <= 4000),   -- cómo / por qué se resolvió
+  ResolucionPorId  TEXT NULL REFERENCES Usuario(Id),
+  IsDeleted        INTEGER NOT NULL DEFAULT 0 CHECK (IsDeleted IN (0, 1)),
+  CHECK (Estado <> 'resuelto' OR length(trim(COALESCE(ResolucionTexto, ''))) >= 5)               -- no se resuelve sin motivo
+);
+
+CREATE TABLE IF NOT EXISTS ProblematicaResolucionPrevia (   -- solo anexar: resoluciones de una problemática reabierta
+  Id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  ProblematicaId TEXT NOT NULL REFERENCES Problematica(Id),
+  ContratoId     TEXT NOT NULL REFERENCES Contrato(Id),
+  Texto          TEXT NOT NULL,
+  AutorId        TEXT NULL REFERENCES Usuario(Id),
+  ResueltaEn     TEXT NULL
+);
+
+CREATE TABLE IF NOT EXISTS LecturaNotificacion (        -- avisos del IF: lo anterior a LeidoEn ya fue leído
+  UsuarioId TEXT PRIMARY KEY REFERENCES Usuario(Id),
+  LeidoEn   TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS ProblematicaStakeholder (
@@ -234,6 +253,8 @@ CREATE TRIGGER IF NOT EXISTS HistOf_NoEditar BEFORE UPDATE ON HistorialOficial B
 CREATE TRIGGER IF NOT EXISTS HistOf_NoBorrar BEFORE DELETE ON HistorialOficial BEGIN SELECT RAISE(ABORT, 'Historial de solo anexar'); END;
 CREATE TRIGGER IF NOT EXISTS Nota_NoEditar BEFORE UPDATE ON ProblematicaNota BEGIN SELECT RAISE(ABORT, 'Notas de solo anexar'); END;
 CREATE TRIGGER IF NOT EXISTS Nota_NoBorrar BEFORE DELETE ON ProblematicaNota BEGIN SELECT RAISE(ABORT, 'Notas de solo anexar'); END;
+CREATE TRIGGER IF NOT EXISTS ResPrev_NoEditar BEFORE UPDATE ON ProblematicaResolucionPrevia BEGIN SELECT RAISE(ABORT, 'Historial de solo anexar'); END;
+CREATE TRIGGER IF NOT EXISTS ResPrev_NoBorrar BEFORE DELETE ON ProblematicaResolucionPrevia BEGIN SELECT RAISE(ABORT, 'Historial de solo anexar'); END;
 CREATE TRIGGER IF NOT EXISTS Auditoria_NoEditar BEFORE UPDATE ON Auditoria BEGIN SELECT RAISE(ABORT, 'Auditoría de solo anexar'); END;
 CREATE TRIGGER IF NOT EXISTS Auditoria_NoBorrar BEFORE DELETE ON Auditoria BEGIN SELECT RAISE(ABORT, 'Auditoría de solo anexar'); END;
 

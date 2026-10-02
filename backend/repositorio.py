@@ -55,6 +55,10 @@ _ASIGNADOS = 'SELECT ContratoId FROM UsuarioContrato WHERE UsuarioId = ? AND Act
 
 # Lecturas: (nombre, por_usuario) -> SQL literal. Las variantes "por usuario" reciben el id de la sesión.
 _LECTURAS = {
+    ('contratos', False): 'SELECT Id, Nombre, UnidadLabel, InspectorNombre, CorreoAprobador, Activo FROM Contrato ORDER BY Nombre',
+    ('contratos', True): 'SELECT c.Id, c.Nombre, c.UnidadLabel, c.InspectorNombre, c.CorreoAprobador, c.Activo, '
+                         '(SELECT uc.RolContrato FROM UsuarioContrato uc WHERE uc.UsuarioId = ? AND uc.ContratoId = c.Id AND uc.Activo = 1) AS RolContrato '
+                         'FROM Contrato c WHERE c.Id IN (' + _ASIGNADOS + ') ORDER BY c.Nombre',
     ('unidades', False): 'SELECT Id, ContratoId, Nombre, Activo FROM Unidad ORDER BY Nombre',
     ('unidades', True): 'SELECT Id, ContratoId, Nombre, Activo FROM Unidad WHERE ContratoId IN (' + _ASIGNADOS + ') ORDER BY Nombre',
     ('hitos', False): 'SELECT h.Id, h.ContratoId, h.UnidadId, h.Nombre, h.Tipo, h.FechaContractual, o.FechaVigente, o.FechaReal '
@@ -76,9 +80,9 @@ _LECTURAS = {
                            'FechaReporte, Nota, Estado, AutorId, CreadoEn, EnviadoEn, RevisorId, RevisadoEn, ComentarioRevision '
                            'FROM Solicitud WHERE ContratoId IN (' + _ASIGNADOS + ') ORDER BY CreadoEn DESC',
     ('problematicas', False): 'SELECT Id, ContratoId, UnidadId, Titulo, Descripcion, Impacto, NivelRiesgo, Estado, '
-                              'FechaVencimiento, AutorId, CreadoEn, ResueltaEn FROM Problematica WHERE IsDeleted = 0 ORDER BY CreadoEn DESC',
+                              'FechaVencimiento, AutorId, CreadoEn, ResueltaEn, ResolucionTexto, ResolucionPorId FROM Problematica WHERE IsDeleted = 0 ORDER BY CreadoEn DESC',
     ('problematicas', True): 'SELECT Id, ContratoId, UnidadId, Titulo, Descripcion, Impacto, NivelRiesgo, Estado, '
-                             'FechaVencimiento, AutorId, CreadoEn, ResueltaEn FROM Problematica WHERE IsDeleted = 0 '
+                             'FechaVencimiento, AutorId, CreadoEn, ResueltaEn, ResolucionTexto, ResolucionPorId FROM Problematica WHERE IsDeleted = 0 '
                              'AND ContratoId IN (' + _ASIGNADOS + ') ORDER BY CreadoEn DESC',
 }
 
@@ -103,8 +107,8 @@ _UNA = {
                           'FROM Solicitud WHERE Id = ?',
     ('solicitud', True): 'SELECT ContratoId, Tipo, UnidadId, HitoId, ValorAvance, ValorFecha, FechaReporte, Nota, Estado, AutorId '
                          'FROM Solicitud WHERE Id = ? AND ContratoId IN (' + _ASIGNADOS + ')',
-    ('problematica', False): 'SELECT ContratoId, UnidadId, Titulo, NivelRiesgo, Estado, AutorId FROM Problematica WHERE Id = ? AND IsDeleted = 0',
-    ('problematica', True): 'SELECT ContratoId, UnidadId, Titulo, NivelRiesgo, Estado, AutorId FROM Problematica '
+    ('problematica', False): 'SELECT ContratoId, UnidadId, Titulo, NivelRiesgo, Estado, AutorId, ResolucionTexto, ResolucionPorId, ResueltaEn FROM Problematica WHERE Id = ? AND IsDeleted = 0',
+    ('problematica', True): 'SELECT ContratoId, UnidadId, Titulo, NivelRiesgo, Estado, AutorId, ResolucionTexto, ResolucionPorId, ResueltaEn FROM Problematica '
                             'WHERE Id = ? AND IsDeleted = 0 AND ContratoId IN (' + _ASIGNADOS + ')',
     ('tarea', False): 'SELECT ContratoId FROM ProblematicaTarea WHERE Id = ?',
     ('tarea', True): 'SELECT ContratoId FROM ProblematicaTarea WHERE Id = ? AND ContratoId IN (' + _ASIGNADOS + ')',
@@ -231,11 +235,17 @@ class Repositorio:
         self._auditar(cur, sesion, 'guardar', 'Usuario', usuario_id, None)
         self.conn.commit()
 
-    def guardar_permiso(self, sesion, usuario_id, rol, contratos, activo=True):
+    def guardar_permiso(self, sesion, usuario_id, rol, contratos, activo=True, roles_contrato=None, email=None):
+        """roles_contrato: {contrato_id: 'titular' | 'suplente'} (solo IF; por omisión 'titular').
+        email: correo de la persona, para los avisos (mailto:); None = no cambiarlo."""
         self._exigir(sesion, 'ADMIN')
         usuario_id = v.ident(usuario_id, 'usuario')
         rol = v.opcion(rol, v.ROLES, 'perfil')
         ids = [v.ident(c, 'contrato') for c in (contratos or [])] if rol in ('IF', 'VALIDADOR') else []
+        roles_contrato = roles_contrato or {}
+        por_contrato = {cid: v.opcion(roles_contrato.get(cid, 'titular'), v.ROLES_CONTRATO, 'rol en el contrato') for cid in ids}
+        if email is not None:
+            email = v.correo(email, campo='correo de la persona') or None
         if rol in ('IF', 'VALIDADOR') and activo and not ids:
             raise v.ErrorValidacion('Asigna al menos un contrato a este perfil.')
         cur = self._cursor(sesion)
@@ -248,10 +258,13 @@ class Repositorio:
         # Las asignaciones nunca se borran: se desactivan todas y se reactivan las elegidas.
         cur.execute('UPDATE UsuarioContrato SET Activo = 0 WHERE UsuarioId = ?', (usuario_id,))
         for cid in ids:
-            cur.execute('UPDATE UsuarioContrato SET Activo = 1 WHERE UsuarioId = ? AND ContratoId = ?', (usuario_id, cid))
+            rc = por_contrato[cid] if rol == 'IF' else 'titular'
+            cur.execute('UPDATE UsuarioContrato SET Activo = 1, RolContrato = ? WHERE UsuarioId = ? AND ContratoId = ?', (rc, usuario_id, cid))
             if cur.rowcount == 0:
-                cur.execute('INSERT INTO UsuarioContrato (UsuarioId, ContratoId) VALUES (?, ?)', (usuario_id, cid))
-        self._auditar(cur, sesion, 'permiso', 'Permiso', usuario_id, None, rol + ': ' + ','.join(ids))
+                cur.execute('INSERT INTO UsuarioContrato (UsuarioId, ContratoId, RolContrato) VALUES (?, ?, ?)', (usuario_id, cid, rc))
+        if email is not None:
+            cur.execute('UPDATE Usuario SET Email = ? WHERE Id = ?', (email, usuario_id))
+        self._auditar(cur, sesion, 'permiso', 'Permiso', usuario_id, None, rol + ': ' + ','.join(c + '=' + por_contrato[c] for c in ids))
         self.conn.commit()
 
     # ------------------------------------------------------------ estructura (ADMIN)
@@ -260,13 +273,14 @@ class Repositorio:
         fila = (v.texto(datos.get('nombre'), v.LIM['nombre'], requerido=True, campo='nombre'),
                 v.texto(datos.get('unidadLabel'), v.LIM['label']),
                 v.texto(datos.get('inspectorNombre'), v.LIM['inspector']),
+                v.correo(datos.get('correoAprobador'), campo='correo del aprobador'),
                 0 if datos.get('activo') is False else 1)
         cur = self._cursor(sesion)
         if contrato_id is None:
             contrato_id = _nuevo_id()
-            cur.execute('INSERT INTO Contrato (Nombre, UnidadLabel, InspectorNombre, Activo, Id) VALUES (?, ?, ?, ?, ?)', fila + (contrato_id,))
+            cur.execute('INSERT INTO Contrato (Nombre, UnidadLabel, InspectorNombre, CorreoAprobador, Activo, Id) VALUES (?, ?, ?, ?, ?, ?)', fila + (contrato_id,))
         else:
-            cur.execute('UPDATE Contrato SET Nombre = ?, UnidadLabel = ?, InspectorNombre = ?, Activo = ? WHERE Id = ?',
+            cur.execute('UPDATE Contrato SET Nombre = ?, UnidadLabel = ?, InspectorNombre = ?, CorreoAprobador = ?, Activo = ? WHERE Id = ?',
                         fila + (v.ident(contrato_id, 'contrato'),))
         self._auditar(cur, sesion, 'guardar', 'Contrato', contrato_id, contrato_id)
         self.conn.commit()
@@ -316,6 +330,13 @@ class Repositorio:
         self.conn.commit()
 
     # ------------------------------------------------------------ lecturas
+    def listar_contratos(self, sesion):
+        """Contratos del alcance; para IF y VALIDADOR trae además su RolContrato (titular/suplente)."""
+        por_usuario = self._por_usuario(sesion, oficial=True)
+        cur = self._cursor(sesion)
+        cur.execute(_LECTURAS[('contratos', por_usuario)], (sesion.usuario_id, sesion.usuario_id) if por_usuario else ())
+        return self._filas(cur)
+
     def listar_unidades(self, sesion):
         return self._leer(sesion, 'unidades', oficial=True)
 
@@ -545,15 +566,57 @@ class Repositorio:
         self.conn.commit()
         return problematica_id
 
-    def mover_problematica(self, sesion, problematica_id, estado):
+    def mover_problematica(self, sesion, problematica_id, estado, motivo=None):
+        """Resolver exige el motivo (cómo / por qué se resolvió, mín. 5 caracteres); queda con su autor y fecha.
+        Al reabrir, la resolución anterior se conserva (solo anexar)."""
         self._exigir(sesion, 'IF', 'VALIDADOR', 'ADMIN')
         cur = self._cursor(sesion)
         problematica_id = v.ident(problematica_id, 'problemática')
         estado = v.opcion(estado, v.PB_ESTADOS, 'estado')
         p = self._una(cur, sesion, 'problematica', problematica_id)
-        cur.execute('UPDATE Problematica SET Estado = ?, ResueltaEn = ? WHERE Id = ?',
-                    (estado, self._ts(_ahora()) if estado == 'resuelto' else None, problematica_id))
+        ahora = self._ts(_ahora())
+        if estado == 'resuelto':
+            motivo = v.texto(motivo, v.LIM['texto'], multilinea=True, requerido=True, campo='motivo de la resolución')
+            if len(motivo) < 5:
+                raise v.ErrorValidacion('motivo de la resolución: mínimo 5 caracteres')
+            cur.execute('UPDATE Problematica SET Estado = ?, ResueltaEn = ?, ResolucionTexto = ?, ResolucionPorId = ? WHERE Id = ?',
+                        (estado, ahora, motivo, sesion.usuario_id, problematica_id))
+        else:
+            if p['Estado'] == 'resuelto' and p['ResolucionTexto']:
+                cur.execute('INSERT INTO ProblematicaResolucionPrevia (ProblematicaId, ContratoId, Texto, AutorId, ResueltaEn) VALUES (?, ?, ?, ?, ?)',
+                            (problematica_id, p['ContratoId'], p['ResolucionTexto'], p['ResolucionPorId'], p['ResueltaEn']))
+            cur.execute('UPDATE Problematica SET Estado = ?, ResueltaEn = NULL, ResolucionTexto = NULL, ResolucionPorId = NULL WHERE Id = ?',
+                        (estado, problematica_id))
         self._auditar(cur, sesion, 'mover', 'Problematica', problematica_id, p['ContratoId'], estado)
+        self.conn.commit()
+
+    def listar_resoluciones_previas(self, sesion, problematica_id):
+        cur = self._cursor(sesion)
+        problematica_id = v.ident(problematica_id, 'problemática')
+        self._una(cur, sesion, 'problematica', problematica_id)     # exige que esté en tu alcance
+        cur.execute('SELECT Texto, AutorId, ResueltaEn FROM ProblematicaResolucionPrevia WHERE ProblematicaId = ? ORDER BY Id', (problematica_id,))
+        return self._filas(cur)
+
+    # ------------------------------------------------------------ avisos del IF
+    def listar_avisos(self, sesion):
+        """Solicitudes propias resueltas o en revisión, con la marca de lectura del usuario."""
+        self._exigir(sesion, 'IF')
+        cur = self._cursor(sesion)
+        cur.execute('SELECT Id, ContratoId, Tipo, Estado, RevisadoEn, EnviadoEn, ComentarioRevision FROM Solicitud '
+                    "WHERE AutorId = ? AND Estado IN ('PENDIENTE_APROBACION', 'APROBADO', 'RECHAZADO') ORDER BY COALESCE(RevisadoEn, EnviadoEn) DESC",
+                    (sesion.usuario_id,))
+        avisos = self._filas(cur)
+        cur.execute('SELECT LeidoEn FROM LecturaNotificacion WHERE UsuarioId = ?', (sesion.usuario_id,))
+        fila = cur.fetchone()
+        return avisos, (fila[0] if fila else None)
+
+    def marcar_avisos_leidos(self, sesion):
+        self._exigir(sesion, 'IF')
+        cur = self._cursor(sesion)
+        ahora = self._ts(_ahora())
+        cur.execute('UPDATE LecturaNotificacion SET LeidoEn = ? WHERE UsuarioId = ?', (ahora, sesion.usuario_id))
+        if cur.rowcount == 0:
+            cur.execute('INSERT INTO LecturaNotificacion (UsuarioId, LeidoEn) VALUES (?, ?)', (sesion.usuario_id, ahora))
         self.conn.commit()
 
     def alternar_tarea(self, sesion, tarea_id, hecho):

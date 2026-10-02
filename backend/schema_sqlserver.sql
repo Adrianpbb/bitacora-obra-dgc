@@ -1,6 +1,6 @@
 /* =====================================================================
    Bitácora de Obra — esquema SQL Server (espacio institucional)
-   Actualizado al: 2026-10-01 (v8: perfiles, flujo de aprobación, datos oficiales)
+   Actualizado al: 2026-10-02 (v10: titular/suplente, correos, motivo de resolución, avisos leídos)
 
    NO EJECUTAR sin revisión del DBA: crea un esquema, roles y políticas de
    seguridad por filas. Se ejecuta con sqlcmd o SSMS (usa separadores GO).
@@ -42,12 +42,14 @@ CREATE TABLE bitacora.Contrato (
   Nombre          NVARCHAR(150) NOT NULL CHECK (LEN(Nombre) >= 1),
   UnidadLabel     NVARCHAR(50)  NOT NULL DEFAULT N'',
   InspectorNombre NVARCHAR(150) NOT NULL DEFAULT N'',
+  CorreoAprobador NVARCHAR(254) NOT NULL DEFAULT N'',   -- a esta dirección se abre el aviso (mailto:)
   Activo          BIT           NOT NULL DEFAULT 1,
   CreadoEn        DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
 );
 CREATE TABLE bitacora.UsuarioContrato (
   UsuarioId  NVARCHAR(128) NOT NULL REFERENCES bitacora.Usuario(Id),
   ContratoId NVARCHAR(64)  NOT NULL REFERENCES bitacora.Contrato(Id),
+  RolContrato VARCHAR(10)  NOT NULL DEFAULT 'titular' CHECK (RolContrato IN ('titular', 'suplente')),  -- un IF suele tener 2
   Activo     BIT           NOT NULL DEFAULT 1,
   PRIMARY KEY (UsuarioId, ContratoId)
 );
@@ -174,7 +176,23 @@ CREATE TABLE bitacora.Problematica (
   AutorId          NVARCHAR(128)  NOT NULL REFERENCES bitacora.Usuario(Id),
   CreadoEn         DATETIME2(3)   NOT NULL DEFAULT SYSUTCDATETIME(),
   ResueltaEn       DATETIME2(3)   NULL,
-  IsDeleted        BIT            NOT NULL DEFAULT 0
+  ResolucionTexto  NVARCHAR(4000) NULL,                    -- cómo / por qué se resolvió
+  ResolucionPorId  NVARCHAR(128)  NULL REFERENCES bitacora.Usuario(Id),
+  IsDeleted        BIT            NOT NULL DEFAULT 0,
+  CONSTRAINT CK_Problematica_ResueltaConMotivo            -- no se resuelve sin motivo
+    CHECK (Estado <> 'resuelto' OR LEN(LTRIM(RTRIM(ISNULL(ResolucionTexto, N'')))) >= 5)
+);
+CREATE TABLE bitacora.ProblematicaResolucionPrevia (        -- solo anexar: resoluciones de una problemática reabierta
+  Id             BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+  ProblematicaId NVARCHAR(64)   NOT NULL REFERENCES bitacora.Problematica(Id),
+  ContratoId     NVARCHAR(64)   NOT NULL REFERENCES bitacora.Contrato(Id),
+  Texto          NVARCHAR(4000) NOT NULL,
+  AutorId        NVARCHAR(128)  NULL REFERENCES bitacora.Usuario(Id),
+  ResueltaEn     DATETIME2(3)   NULL
+);
+CREATE TABLE bitacora.LecturaNotificacion (                 -- avisos del IF: lo anterior a LeidoEn ya fue leído
+  UsuarioId NVARCHAR(128) NOT NULL PRIMARY KEY REFERENCES bitacora.Usuario(Id),
+  LeidoEn   DATETIME2(3)  NOT NULL
 );
 CREATE TABLE bitacora.ProblematicaStakeholder (
   ProblematicaId NVARCHAR(64) NOT NULL REFERENCES bitacora.Problematica(Id),
@@ -249,6 +267,11 @@ RETURNS TABLE WITH SCHEMABINDING AS RETURN
   WHERE CAST(SESSION_CONTEXT(N'rol') AS VARCHAR(10)) = 'ADMIN'
      OR (CAST(SESSION_CONTEXT(N'rol') AS VARCHAR(10)) = 'VALIDADOR' AND EXISTS (SELECT 1 FROM bitacora.fn_Asignado(@ContratoId)));
 GO
+-- Cada cuenta solo ve y escribe lo suyo (avisos leídos).
+CREATE FUNCTION bitacora.fn_Propio (@UsuarioId NVARCHAR(128))
+RETURNS TABLE WITH SCHEMABINDING AS RETURN
+  SELECT 1 AS Ok WHERE @UsuarioId = CAST(SESSION_CONTEXT(N'usuario_id') AS NVARCHAR(128));
+GO
 -- Solo ADMIN (permisos, asignaciones, línea base).
 CREATE FUNCTION bitacora.fn_SoloAdmin (@Cualquiera NVARCHAR(128))
 RETURNS TABLE WITH SCHEMABINDING AS RETURN
@@ -272,7 +295,15 @@ CREATE SECURITY POLICY bitacora.PoliticaOperativa
   ADD BLOCK  PREDICATE bitacora.fn_Operativo(ContratoId) ON bitacora.ProblematicaTarea AFTER INSERT,
   ADD BLOCK  PREDICATE bitacora.fn_Operativo(ContratoId) ON bitacora.ProblematicaTarea AFTER UPDATE,
   ADD FILTER PREDICATE bitacora.fn_Operativo(ContratoId) ON bitacora.ProblematicaNota,
-  ADD BLOCK  PREDICATE bitacora.fn_Operativo(ContratoId) ON bitacora.ProblematicaNota AFTER INSERT
+  ADD BLOCK  PREDICATE bitacora.fn_Operativo(ContratoId) ON bitacora.ProblematicaNota AFTER INSERT,
+  ADD FILTER PREDICATE bitacora.fn_Operativo(ContratoId) ON bitacora.ProblematicaResolucionPrevia,
+  ADD BLOCK  PREDICATE bitacora.fn_Operativo(ContratoId) ON bitacora.ProblematicaResolucionPrevia AFTER INSERT
+  WITH (STATE = ON);
+GO
+CREATE SECURITY POLICY bitacora.PoliticaPropia
+  ADD FILTER PREDICATE bitacora.fn_Propio(UsuarioId) ON bitacora.LecturaNotificacion,
+  ADD BLOCK  PREDICATE bitacora.fn_Propio(UsuarioId) ON bitacora.LecturaNotificacion AFTER INSERT,
+  ADD BLOCK  PREDICATE bitacora.fn_Propio(UsuarioId) ON bitacora.LecturaNotificacion AFTER UPDATE
   WITH (STATE = ON);
 GO
 CREATE SECURITY POLICY bitacora.PoliticaOficial
@@ -320,11 +351,14 @@ GRANT SELECT, INSERT         ON bitacora.ProblematicaStakeholder  TO bitacora_ap
 GRANT SELECT, INSERT         ON bitacora.ProblematicaEscalamiento TO bitacora_app;
 GRANT SELECT, INSERT, UPDATE ON bitacora.ProblematicaTarea        TO bitacora_app;
 GRANT SELECT, INSERT         ON bitacora.ProblematicaNota         TO bitacora_app;
+GRANT SELECT, INSERT         ON bitacora.ProblematicaResolucionPrevia TO bitacora_app;
+GRANT SELECT, INSERT, UPDATE ON bitacora.LecturaNotificacion      TO bitacora_app;
 GRANT INSERT                 ON bitacora.Auditoria                TO bitacora_app;
 DENY  DELETE ON SCHEMA::bitacora TO bitacora_app;                 -- nada se borra físicamente
 DENY  UPDATE ON bitacora.SolicitudHistorial TO bitacora_app;      -- historiales y auditoría: solo anexar
 DENY  UPDATE ON bitacora.HistorialOficial   TO bitacora_app;
 DENY  UPDATE ON bitacora.ProblematicaNota   TO bitacora_app;
+DENY  UPDATE ON bitacora.ProblematicaResolucionPrevia TO bitacora_app;
 DENY  UPDATE ON bitacora.Auditoria          TO bitacora_app;
 GO
 

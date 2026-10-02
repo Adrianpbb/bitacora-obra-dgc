@@ -15,6 +15,7 @@ import json
 import os
 import pathlib
 import sys
+import urllib.parse
 
 from playwright.sync_api import sync_playwright
 
@@ -122,7 +123,7 @@ DIRECTORIO = [{'id': 'u_if1', 'name': 'Inés Fiscal'}, {'id': 'u_val', 'name': '
 
 def base():
     s = {
-        'contratos/c1': {'nombre': 'Red Aeroportuaria Austral', 'unidadLabel': 'Aeropuerto', 'inspectorNombre': 'Inés Fiscal'},
+        'contratos/c1': {'nombre': 'Red Aeroportuaria Austral', 'unidadLabel': 'Aeropuerto', 'inspectorNombre': 'Inés Fiscal', 'correoAprobador': 'jefe.depto@example.org'},
         'contratos/c2': {'nombre': 'Teleférico Bicentenario', 'unidadLabel': 'Estación', 'inspectorNombre': 'Otro IF'},
         'unidades/u1': {'contratoId': 'c1', 'nombre': 'Aeródromo ' + XSS, 'activo': True},
         'unidades/u2': {'contratoId': 'c2', 'nombre': 'SECRETO-C2-UNIDAD', 'activo': True},
@@ -201,6 +202,11 @@ def escenario_if(p):
     seed['problematicas/p1'] = {'contratoId': 'c1', 'unidadId': 'u1', 'titulo': XSS, 'descripcion': '<script>window.__T.xss++</script>',
                                 'escalamiento': 'Directora', 'estado': 'detectado', 'nivelRiesgo': '__proto__', 'ts': 3,
                                 'bitacora': [{'texto': XSS, 'autor': '<b>z</b>'}], 'checklist': [{'texto': XSS, 'hecho': False}]}
+    seed['solicitudes/sr1'] = {'tipo': 'avance', 'contratoId': 'c1', 'unidadId': 'u1', 'valorPropuesto': 80, 'valorVigente': 62, 'fechaReporte': d(-3), 'nota': 'x',
+                               'estado': 'RECHAZADO', 'autorId': 'u_if1', 'creadoTs': 1790000000100, 'enviadoTs': 1790000000100, 'revisorId': 'u_val',
+                               'revisadoTs': 1790000000500, 'comentarioRevision': 'Falta respaldo fotográfico ' + XSS}
+    seed['solicitudes/sa1'] = {'tipo': 'fecha_programada', 'contratoId': 'c1', 'hitoId': 'h3', 'valorPropuesto': d(210), 'valorVigente': d(200), 'nota': 'Ajuste',
+                               'estado': 'APROBADO', 'autorId': 'u_if1', 'creadoTs': 1790000000200, 'enviadoTs': 1790000000200, 'revisorId': 'u_val', 'revisadoTs': 1790000000600}
     browser, page, errores = abrir(p, {'uid': 'u_if1', 'name': 'Inés Fiscal', 'level': 'interact', 'seed': seed})
     try:
         page.wait_for_selector('#gatePerfil', state='visible', timeout=15000)
@@ -213,7 +219,7 @@ def escenario_if(p):
         check('El IF no consulta permisos, auditoría ni configuración', not any(q['col'].startswith(('permisos', 'audit', 'config')) for q in qs), qs)
         check('Selector "Ver como" oculto para el IF', page.is_hidden('#verComoWrap'))
         tab_ids = page.eval_on_selector_all('#tabsNav .tabd', 'els => els.map(e => e.dataset.tab)')
-        check('Pestañas del IF', tab_ids == ['contratos', 'cargar', 'solicitudes', 'problematicas', 'resueltas'], tab_ids)
+        check('Pestañas del IF', tab_ids == ['contratos', 'avance', 'hitos', 'solicitudes', 'problematicas', 'resueltas'], tab_ids)
         page.click('.ccard[data-cid=c1] .js-radar')
         page.wait_for_timeout(300)
         pasos = page.eval_on_selector_all('.ccard[data-cid=c1] .rstep', 'els => els.map(e => e.className)')
@@ -225,12 +231,14 @@ def escenario_if(p):
         page.wait_for_timeout(200)
         check('Bitácora histórica con el cambio aprobado', '50% → 62%' in page.inner_text('.ccard[data-cid=c1] .hist'))
 
-        tab(page, 'cargar')
+        tab(page, 'avance')
+        check('Un solo contrato: no hay selector de contrato activo', page.is_hidden('#avCtrWrap'))
         n = len(escrituras(page))
         page.select_option('#cgAvUnidad', 'u1')
         page.fill('#cgAvPct', '150')
         page.click('#formAvance button[type=submit]')
         check('Avance fuera de rango rechazado', 'entre 0 y 100' in toast(page) and len(escrituras(page)) == n)
+        check('Historial de avances al costado: valores aprobados con fecha', '62%' in page.inner_text('#avTimeline') and '50% → 62%' not in page.inner_text('#avTimeline') and '+12 pts' in page.inner_text('#avTimeline'), page.inner_text('#avTimeline'))
         page.fill('#cgAvPct', '70')
         page.fill('#cgAvNota', 'Avance de pavimentos')
         page.click('#formAvance button[type=submit]')
@@ -242,33 +250,109 @@ def escenario_if(p):
               s['estado'] == 'PENDIENTE_APROBACION' and s['valorPropuesto'] == 70 and s['valorVigente'] == 62 and s['autorId'] == 'u_if1' and s['contratoId'] == 'c1', s)
         esperado = sha(canon(['solicitud', s['tipo'], s['contratoId'], s['unidadId'], s['valorPropuesto'], s['fechaReporte'], s['nota'], s['autorId'], s['creadoTs']]))
         check('Recibo antes de la solicitud y hash compatible con Python', nuevas.index(rec) < nuevas.index(sol) and rec['data']['hash'] == esperado)
+        page.wait_for_selector('#modalBack', state='visible')
+        href = page.get_attribute('#modalBody .js-mailto', 'href')
+        cuerpo = urllib.parse.unquote(href)
+        check('Al enviar aparece "Avisar por correo al aprobador" con mailto: al aprobador del contrato', href.startswith('mailto:jefe.depto@example.org?subject=') and 'Avisar por correo' in page.inner_text('#modalBody'), href[:80])
+        check('El correo redactado trae contrato, sector, dato, valor propuesto y nota',
+              'Contrato: Red Aeroportuaria Austral' in cuerpo and 'Sector: Aeródromo' in cuerpo and 'Avance físico' in cuerpo and '70%' in cuerpo and 'Avance de pavimentos' in cuerpo, cuerpo)
+        check('El texto del usuario no se interpreta como HTML en la ventana', page.evaluate('window.__T.xss') == 0)
+        page.click('#modalBody .js-modal-cerrar')
+        check('La ventana se cierra', page.is_hidden('#modalBack'))
         page.fill('#cgAvPct', '75')
         page.click('#formAvance button[type=submit]')
         check('No permite dos propuestas activas para el mismo dato', 'Ya hay una solicitud activa' in toast(page))
 
+        tab(page, 'hitos')
+        check('Gantt con los 3 hitos del contrato', page.locator('.js-g-hito').count() == 3 and page.locator('#ganttWrap .g-hoy').count() == 1)
+        check('Gantt: Ingeniería cumplida (real), Inicio Físico con desvío o en plazo según oficial',
+              'Cumplido' in page.inner_text('.js-g-hito[data-hid=h1]') and page.locator('.js-g-hito[data-hid=h1] .g-mk.real').count() == 1)
+        check('Ya no existe el formulario suelto de hitos', page.locator('#formFecha, #cgHito').count() == 0)
         n = len(escrituras(page))
-        page.select_option('#cgHito', 'h2')
-        page.fill('#cgFecha', d(40))
-        page.click('#formFecha button[type=submit]')
+        page.click('.js-g-hito[data-hid=h2]')
+        page.wait_for_selector('#formHito')
+        ident = page.inner_text('#modalBody .ident')
+        check('Popup identifica contrato, sector y hito', 'Red Aeroportuaria Austral' in ident and 'Aeródromo' in ident and 'Inicio de obras' in ident, ident)
+        page.fill('#mhFecha', d(40))
+        page.click('#formHito button[type=submit]')
         check('Reprogramar exige justificación', 'Justifica' in toast(page) and len(escrituras(page)) == n)
-        page.fill('#cgFechaNota', 'Retraso en permisos')
-        page.click('#formFecha [data-borrador]')
+        page.fill('#mhNota', 'Retraso en permisos')
+        page.click('#formHito button[type=submit]')
         nuevas = esperar(page, 'solicitudes/', n)
-        check('Borrador guardado', next(w for w in nuevas if w['path'].startswith('solicitudes/'))['data']['estado'] == 'BORRADOR')
+        sh = next(w for w in nuevas if w['path'].startswith('solicitudes/'))['data']
+        check('Desde el Gantt se crea la solicitud de fecha programada en revisión', sh['tipo'] == 'fecha_programada' and sh['estado'] == 'PENDIENTE_APROBACION' and sh['hitoId'] == 'h2' and sh['valorPropuesto'] == d(40), sh)
+        page.wait_for_selector('#modalBody .js-mailto')
+        cuerpo = urllib.parse.unquote(page.get_attribute('#modalBody .js-mailto', 'href'))
+        check('Correo de la fecha: contrato, sector, hito, valor propuesto y justificación', 'Hito a modificar: Inicio de obras' in cuerpo and 'Retraso en permisos' in cuerpo and 'Sector: Aeródromo' in cuerpo, cuerpo)
+        page.click('#modalBody .js-modal-cerrar')
+        page.click('.js-g-hito[data-hid=h2]')
+        page.wait_for_selector('#formHito')
+        check('Con una propuesta en revisión, el popup lo avisa', 'Ya hay una propuesta en revisión' in page.inner_text('#mhPend'))
+        n = len(escrituras(page))
+        page.click('#formHito input[value=fecha_real]')
+        page.fill('#mhFecha', d(5))
+        page.click('#formHito button[type=submit]')
+        check('La fecha real no puede ser futura', 'futura' in toast(page) and len(escrituras(page)) == n)
+        page.keyboard.press('Escape')
+        check('Escape cierra el popup', page.is_hidden('#modalBack'))
 
         tab(page, 'solicitudes')
         check('Mis solicitudes muestra días en revisión', 'En revisión hace 0 días' in page.inner_text('#solLista'))
-        page.click('#solFiltros [data-filtro=BORRADOR]')
+        check('Mis solicitudes ofrece avisar por correo al aprobador', page.locator('#solLista a.js-mailto').count() == 2)
         n = len(escrituras(page))
-        page.click('#solLista .js-sol-cancelar')
+        page.click('#solLista .sol[data-id] >> nth=0 >> .js-sol-cancelar')
         page.click('#solLista .js-sol-cancelar-si')
         nuevas = esperar(page, 'solicitudes/', n)
-        check('Cancelar borrador = eliminación lógica (sin borrar)', nuevas[-1]['op'] == 'update' and nuevas[-1]['data']['estado'] == 'ELIMINADO'
+        check('Cancelar una solicitud = eliminación lógica (sin borrar)', nuevas[-1]['op'] == 'update' and nuevas[-1]['data']['estado'] == 'ELIMINADO'
               and nuevas[-1]['data']['isDeleted'] is True and not any(w['op'] == 'delete' for w in escrituras(page)), nuevas[-1])
+        tab(page, 'avance')
+        n = len(escrituras(page))
+        page.select_option('#cgAvUnidad', 'u1')
+        page.fill('#cgAvPct', '66')
+        page.click('#formAvance [data-borrador]')
+        nuevas = esperar(page, 'solicitudes/', n)
+        check('Borrador de avance guardado', next(w for w in nuevas if w['path'].startswith('solicitudes/'))['data']['estado'] == 'BORRADOR')
 
         tab(page, 'problematicas')
         page.click('.kcard[data-id=p1] .kcard-expand-btn')
         page.wait_for_timeout(200)
+
+        n = len(escrituras(page))
+        page.select_option('.kcard[data-id=p1] .k-move', 'resuelto')
+        page.wait_for_selector('#formResolver')
+        page.click('#formResolver button[type=submit]')
+        check('Resolver exige el motivo (sin motivo no se guarda)', 'mínimo 5' in toast(page) and len(escrituras(page)) == n)
+        page.fill('#mrTexto', 'Se acordó el plan de acceso con la comunidad')
+        page.click('#formResolver button[type=submit]')
+        nuevas = esperar(page, 'problematicas/p1', n)
+        up = nuevas[-1]['data']
+        check('Resolución guardada con texto, fecha y autor (id, no nombre)', up['estado'] == 'resuelto' and up['resolucion']['texto'].startswith('Se acordó') and up['resolucion']['autorId'] == 'u_if1'
+              and up['resolucion']['fecha'] == up['fechaResuelta'] and 'Inés' not in json.dumps(up), up)
+        tab(page, 'resueltas')
+        check('Resueltas muestra el motivo', 'Se acordó el plan' in page.inner_text('#resueltasBody'))
+        page.click('#resueltasBody tr[data-id=p1] .btn-ficha')
+        page.wait_for_selector('#modalBody .ficha-sec')
+        ficha = page.inner_text('#modalBody').lower()
+        check('Ficha completa: descripción, checklist, bitácora y motivo con fecha y autor',
+              'qué es el problema' in ficha and 'tareas para subsanar' in ficha and 'bitácora de notas (1)' in ficha
+              and 'se acordó el plan de acceso' in ficha and 'inés fiscal (tú)' in ficha and 'resuelta el' in ficha, ficha)
+        page.click('#modalBody .js-modal-cerrar')
+        n = len(escrituras(page))
+        page.click('#resueltasBody tr[data-id=p1] .btn-reabrir')
+        nuevas = esperar(page, 'problematicas/p1', n)
+        up = nuevas[-1]['data']
+        check('Reabrir conserva la resolución anterior (nada se pierde)', up['estado'] == 'detectado' and up['resolucion'] is None and len(up['resolucionesPrevias']) == 1, up)
+
+        check('Campanita: 2 avisos sin leer (1 rechazada y 1 aprobada)', page.inner_text('#bellN') == '2', page.inner_text('#bellN'))
+        page.click('#btnNotif')
+        panel = page.inner_text('#notifPanel').lower()
+        check('Panel de notificaciones: rechazadas con comentario, aprobadas y pendientes', 'rechazadas (1)' in panel and 'falta respaldo fotográfico' in panel and 'aprobadas (1)' in panel and 'pendientes de revisión (1)' in panel, panel)
+        n = len(escrituras(page))
+        page.click('#notifLeidas')
+        nuevas = esperar(page, 'notificaciones/u_if1', n)
+        check('Marcar leídas guarda leidoTs por usuario y apaga el contador', isinstance(nuevas[-1]['data']['leidoTs'], int) and set(nuevas[-1]['data']) == {'leidoTs'} and page.is_hidden('#bellN'), nuevas[-1])
+        page.click('#notifIr')
+        check('El panel lleva a Mis solicitudes (resueltas)', page.locator('#solFiltros .filter-chip.active', has_text='Resueltas').count() == 1 and page.is_hidden('#notifPanel'))
         check('Ninguna carga XSS se ejecutó en ninguna vista', page.evaluate('window.__T.xss') == 0, page.evaluate('window.__T.xss'))
         check('Ningún dato de otro contrato llega a la página', 'SECRETO' not in page.evaluate('document.body.innerHTML'))
         check('El IF no ve insignias de verificación', page.locator('.vbadge').count() == 0)
@@ -283,6 +367,39 @@ def escenario_if(p):
         page.wait_for_timeout(200)
         check('Ancho de teléfono: sin scroll horizontal de la página', page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), page.evaluate('document.documentElement.scrollWidth'))
         page.set_viewport_size({'width': 1280, 'height': 900})
+        check('Sin errores de JavaScript', not errores, errores)
+    finally:
+        browser.close()
+
+
+def escenario_if_dos_contratos(p):
+    print('\nB0. IF con dos contratos (titular y suplente)')
+    seed = base()
+    for k in [k for k in seed if 'SECRETO' in json.dumps(seed[k])]:
+        pass
+    seed['contratos/c3'] = {'nombre': 'Hospital Norte', 'unidadLabel': 'Hospital', 'inspectorNombre': 'IF titular'}
+    seed['unidades/u3'] = {'contratoId': 'c3', 'nombre': 'Torre Hospital', 'activo': True}
+    seed['hitos/h4'] = {'contratoId': 'c3', 'unidadId': 'u3', 'nombre': 'Hito Hospital 1', 'tipo': 'Ingeniería', 'fechaContractual': d(30)}
+    seed['hitos/h5'] = {'contratoId': 'c3', 'unidadId': 'u3', 'nombre': 'Hito Hospital 2', 'tipo': 'PSP', 'fechaContractual': d(300)}
+    seed['permisos/u_if1'] = {'rol': 'if', 'contratos': ['c1', 'c3'], 'rolesContrato': {'c1': 'titular', 'c3': 'suplente'}, 'activo': True}
+    browser, page, errores = abrir(p, {'uid': 'u_if1', 'name': 'Inés Fiscal', 'level': 'interact', 'seed': seed})
+    try:
+        ingresar(page)
+        check('Tarjetas con etiqueta Titular / Suplente', 'Titular' in page.inner_text('.ccard[data-cid=c1] h3') and 'Suplente' in page.inner_text('.ccard[data-cid=c3] h3'),
+              [page.inner_text('.ccard[data-cid=c1] h3'), page.inner_text('.ccard[data-cid=c3] h3')])
+        tab(page, 'avance')
+        opts = page.eval_on_selector_all('#avContrato option', 'els => els.map(e => e.textContent)')
+        check('Con más de un contrato aparece el selector de contrato activo (con Titular/Suplente)', page.is_visible('#avCtrWrap') and len(opts) == 2 and any('Titular' in o for o in opts) and any('Suplente' in o for o in opts), opts)
+        check('Unidades del contrato activo solamente', page.eval_on_selector_all('#cgAvUnidad option', 'els => els.map(e => e.value)') == ['u3'])
+        page.select_option('#avContrato', 'c1')
+        page.wait_for_timeout(250)
+        check('Al cambiar de contrato cambian las unidades', page.eval_on_selector_all('#cgAvUnidad option', 'els => els.map(e => e.value)') == ['u1'])
+        page.select_option('#avContrato', 'c3')
+        tab(page, 'hitos')
+        check('El Gantt sigue el contrato activo (Hospital Norte: 2 hitos)', page.locator('.js-g-hito').count() == 2 and 'Hito Hospital 1' in page.inner_text('#ganttWrap'))
+        page.select_option('#htContrato', 'c1')
+        page.wait_for_timeout(250)
+        check('Volver al otro contrato muestra sus 3 hitos', page.locator('.js-g-hito').count() == 3)
         check('Sin errores de JavaScript', not errores, errores)
     finally:
         browser.close()
@@ -392,10 +509,21 @@ def escenario_admin(p):
         page.click('#permTabla tr[data-uid=u_if2] .js-guardar-perm')
         check('Perfil IF sin contratos no se guarda', 'al menos un contrato' in toast(page) and len(escrituras(page)) == n)
         page.click('#permTabla tr[data-uid=u_if2] .perm-chip[data-cid=c2]')
+        page.select_option('#permTabla tr[data-uid=u_if2] .f-rolctr[data-cid=c2]', 'suplente')
+        page.fill('#permTabla tr[data-uid=u_if2] .f-correo', 'correo-malo')
+        page.click('#permTabla tr[data-uid=u_if2] .js-guardar-perm')
+        check('Un correo con formato inválido no se guarda', 'formato' in toast(page) and len(escrituras(page)) == n)
+        page.fill('#permTabla tr[data-uid=u_if2] .f-correo', 'ana.if@example.org')
         page.click('#permTabla tr[data-uid=u_if2] .js-guardar-perm')
         nuevas = esperar(page, 'permisos/u_if2', n)
         dd = nuevas[-1]['data']
         check('Permiso guardado con multiselección de contratos', dd['rol'] == 'if' and dd['contratos'] == ['c2'] and dd['activo'] is True, dd)
+        check('Permiso guarda Titular/Suplente por contrato y el correo de la persona', dd['rolesContrato'] == {'c2': 'suplente'} and dd['correo'] == 'ana.if@example.org', dd)
+        n = len(escrituras(page))
+        page.fill('#permAprobadores tr[data-cid=c1] .f-correo-apr', 'aprobador.c1@example.org')
+        page.click('#permAprobadores tr[data-cid=c1] .js-guardar-apr')
+        nuevas = esperar(page, 'contratos/c1', n)
+        check('Correo del aprobador guardado en el contrato', nuevas[-1]['op'] == 'update' and nuevas[-1]['data'] == {'correoAprobador': 'aprobador.c1@example.org'}, nuevas[-1])
         check('Solo se guarda el id de la persona, no su nombre', 'Ana' not in json.dumps(dd))
 
         tab(page, 'config')
@@ -436,7 +564,8 @@ def escenario_local(p):
         ingresar(page)
         check('Carga los datos de ejemplo (3 contratos)', page.locator('#ctCards .ccard').count() == 3)
         check('Botón para restablecer datos visible', page.is_visible('#btnRestablecer'))
-        tab(page, 'cargar')
+        tab(page, 'avance')
+        page.select_option('#avContrato', 'dA')
         page.select_option('#cgAvUnidad', 'uA2')
         page.fill('#cgAvPct', '55')
         page.click('#formAvance button[type=submit]')
@@ -473,6 +602,7 @@ def escenario_local(p):
 if __name__ == '__main__':
     with sync_playwright() as p:
         escenario_if(p)
+        escenario_if_dos_contratos(p)
         escenario_validador(p)
         escenario_gabinete(p)
         escenario_admin(p)

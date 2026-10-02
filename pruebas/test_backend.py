@@ -228,5 +228,79 @@ class TestIntegridad(Base):
         self.assertEqual(v.texto('a‮b\x00c﻿', 10), 'abc')
 
 
+class TestV10(Base):
+    """v10 (2026-10-02): titular/suplente, correos, motivo de resolución y avisos leídos."""
+
+    def crear_problematica(self):
+        return self.repo.crear_problematica(self.inf, {'unidadId': self.u1, 'titulo': 'Toma de terreno', 'descripcion': 'Ocupan el acceso'})
+
+    def test_if_con_dos_contratos_titular_y_suplente(self):
+        self.repo.guardar_permiso(self.admin, 'u_if', 'IF', [self.c1, self.c2], roles_contrato={self.c1: 'titular', self.c2: 'suplente'})
+        roles = {c['Id']: c['RolContrato'] for c in self.repo.listar_contratos(self.inf)}
+        self.assertEqual(roles, {self.c1: 'titular', self.c2: 'suplente'})
+        with self.assertRaises(v.ErrorValidacion):
+            self.repo.guardar_permiso(self.admin, 'u_if', 'IF', [self.c1], roles_contrato={self.c1: 'jefe'})
+        # la base también lo impone
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.conn.execute("UPDATE UsuarioContrato SET RolContrato = 'otro' WHERE UsuarioId = 'u_if'")
+
+    def test_alcance_de_contratos_listados(self):
+        self.assertEqual([c['Id'] for c in self.repo.listar_contratos(self.inf)], [self.c1])
+        self.assertEqual(len(self.repo.listar_contratos(self.admin)), 2)
+        self.assertEqual(len(self.repo.listar_contratos(self.gab)), 2)
+
+    def test_correos_se_validan_y_se_guardan(self):
+        for malo in ('sin-arroba', 'a@b', 'a b@x.cl', '<script>@x.cl'):
+            with self.assertRaises(v.ErrorValidacion):
+                self.repo.guardar_contrato(self.admin, {'nombre': 'X', 'correoAprobador': malo})
+        self.repo.guardar_contrato(self.admin, {'nombre': 'Red Aeroportuaria Austral', 'correoAprobador': 'jefe.depto@example.org'}, self.c1)
+        self.assertEqual(self.repo.listar_contratos(self.inf)[0]['CorreoAprobador'], 'jefe.depto@example.org')
+        self.repo.guardar_permiso(self.admin, 'u_if', 'IF', [self.c1], email='if.titular@example.org')
+        self.assertEqual(self.conn.execute("SELECT Email FROM Usuario WHERE Id = 'u_if'").fetchone()[0], 'if.titular@example.org')
+        with self.assertRaises(v.ErrorValidacion):
+            self.repo.guardar_permiso(self.admin, 'u_if', 'IF', [self.c1], email='no-es-correo')
+
+    def test_resolver_exige_motivo_y_queda_con_autor(self):
+        pid = self.crear_problematica()
+        for motivo in (None, '', '   ', 'ok'):
+            with self.assertRaises(v.ErrorValidacion):
+                self.repo.mover_problematica(self.inf, pid, 'resuelto', motivo)
+        self.repo.mover_problematica(self.inf, pid, 'resuelto', 'Se acordó plan de acceso con la comunidad')
+        f = self.repo.listar_problematicas(self.inf)[0]
+        self.assertEqual((f['Estado'], f['ResolucionTexto'], f['ResolucionPorId']), ('resuelto', 'Se acordó plan de acceso con la comunidad', 'u_if'))
+        self.assertIsNotNone(f['ResueltaEn'])
+
+    def test_la_base_impide_resolver_sin_motivo(self):
+        pid = self.crear_problematica()
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.conn.execute("UPDATE Problematica SET Estado = 'resuelto' WHERE Id = ?", (pid,))
+
+    def test_reabrir_conserva_la_resolucion_anterior(self):
+        pid = self.crear_problematica()
+        self.repo.mover_problematica(self.inf, pid, 'resuelto', 'Primera solución acordada')
+        self.repo.mover_problematica(self.inf, pid, 'detectado')
+        f = self.repo.listar_problematicas(self.inf)[0]
+        self.assertEqual((f['Estado'], f['ResolucionTexto']), ('detectado', None))
+        previas = self.repo.listar_resoluciones_previas(self.inf, pid)
+        self.assertEqual([x['Texto'] for x in previas], ['Primera solución acordada'])
+        with self.assertRaises(sqlite3.IntegrityError):           # solo anexar
+            self.conn.execute('UPDATE ProblematicaResolucionPrevia SET Texto = ?', ('x',))
+        with self.assertRaises(r.NoEncontrado):                    # y solo dentro del alcance
+            self.repo.listar_resoluciones_previas(self.val2, pid)
+
+    def test_avisos_del_if_y_marca_de_lectura(self):
+        sid = self.proponer_avance(70)
+        self.repo.rechazar(self.val, sid, 'Falta respaldo fotográfico')
+        avisos, leido = self.repo.listar_avisos(self.inf)
+        self.assertEqual([(a['Estado'], a['ComentarioRevision']) for a in avisos], [('RECHAZADO', 'Falta respaldo fotográfico')])
+        self.assertIsNone(leido)
+        self.repo.marcar_avisos_leidos(self.inf)
+        self.repo.marcar_avisos_leidos(self.inf)                   # idempotente
+        self.assertIsNotNone(self.repo.listar_avisos(self.inf)[1])
+        self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM LecturaNotificacion').fetchone()[0], 1)
+        with self.assertRaises(r.AccesoDenegado):
+            self.repo.listar_avisos(self.val)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

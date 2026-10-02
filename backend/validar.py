@@ -8,7 +8,7 @@ import re
 from datetime import date
 
 LIM = dict(nombre=150, titulo=200, texto=4000, nota=2000, label=50, tag=80, tags=20,
-           checklist=30, tarea=300, inspector=150, motivo=2000)
+           checklist=30, tarea=300, inspector=150, motivo=2000, correo=254, cod_deaf=40)
 
 HITO_TIPOS = ('Ingeniería', 'Inicio Físico', 'PSP', 'PSD', 'Informe de avance', 'Fase de construcción')
 RIESGOS = ('Extremo', 'Alto', 'Medio', 'Bajo')
@@ -17,12 +17,14 @@ ESCALAMIENTOS = ('Jefe de División', 'Directora', 'Jurídica', 'Otro')
 SOL_TIPOS = ('avance', 'fecha_programada', 'fecha_real')
 SOL_ESTADOS = ('BORRADOR', 'PENDIENTE_APROBACION', 'APROBADO', 'RECHAZADO', 'ELIMINADO')
 ROLES = ('IF', 'VALIDADOR', 'ADMIN', 'GABINETE')
+ROLES_CONTRATO = ('titular', 'suplente')
 
 _CTRL = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]')
 # Caracteres invisibles de control bidireccional/BOM: permiten disfrazar texto ("Trojan Source").
 _INVISIBLES = re.compile('[‪-‮⁦-⁩‎‏؜﻿]')
 _ID = re.compile(r'^[A-Za-z0-9_\-.~:@+]{1,200}$')
 _FECHA = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+_CORREO = re.compile(r'^[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}$')
 
 
 class ErrorValidacion(ValueError):
@@ -39,6 +41,18 @@ def texto(v, maximo, multilinea=False, requerido=False, campo='campo'):
     s = s.strip()[:maximo]
     if requerido and not s:
         raise ErrorValidacion(f'{campo}: es obligatorio')
+    return s
+
+
+def correo(v, requerido=False, campo='correo'):
+    """Correo electrónico (mismo patrón que cleanEmail del frontend). Vacío = sin correo."""
+    s = texto(v, LIM['correo'], campo=campo)
+    if not s:
+        if requerido:
+            raise ErrorValidacion(f'{campo}: es obligatorio')
+        return ''
+    if len(s) > LIM['correo'] or not _CORREO.match(s):
+        raise ErrorValidacion(f'{campo}: formato de correo inválido')
     return s
 
 
