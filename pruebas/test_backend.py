@@ -1,0 +1,232 @@
+"""Pruebas del backend v8 (SQLite en memoria): perfiles, flujo de aprobación y seguridad.
+
+Ejecutar:  python test_backend.py
+"""
+import pathlib
+import sqlite3
+import sys
+import unittest
+from datetime import date, timedelta
+
+AQUI = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(AQUI.parent / 'backend'))
+
+import repositorio as r   # noqa: E402
+import validar as v       # noqa: E402
+
+HOY = date.today()
+
+
+def d(dias):
+    return (HOY + timedelta(days=dias)).isoformat()
+
+
+class Base(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        self.conn.executescript((AQUI.parent / 'backend' / 'schema_sqlite.sql').read_text(encoding='utf-8'))
+        self.repo = r.Repositorio(self.conn, 'sqlite')
+        # Arranque: el primer administrador se crea directo en la base (en producción, desde AD).
+        self.conn.execute("INSERT INTO Usuario (Id, Nombre) VALUES ('u_admin', 'Admin Central')")
+        self.conn.execute("INSERT INTO Permiso (UsuarioId, Rol, ActualizadoPor) VALUES ('u_admin', 'ADMIN', 'u_admin')")
+        self.conn.commit()
+        _, self.admin = self.repo.abrir_sesion('u_admin')
+        self.c1 = self.repo.guardar_contrato(self.admin, {'nombre': 'Red Aeroportuaria Austral'})
+        self.c2 = self.repo.guardar_contrato(self.admin, {'nombre': 'Teleférico Bicentenario'})
+        self.u1 = self.repo.guardar_unidad(self.admin, {'contratoId': self.c1, 'nombre': 'Aeródromo Norte'})
+        self.u2 = self.repo.guardar_unidad(self.admin, {'contratoId': self.c2, 'nombre': 'Estación Base'})
+        self.h1 = self.repo.guardar_hito_base(self.admin, {'unidadId': self.u1, 'tipo': 'PSP', 'fechaContractual': d(60)})
+        for uid, nombre, rol, cs in [('u_if', 'Inés Fiscal', 'IF', [self.c1]), ('u_val', 'Valentina Jefa', 'VALIDADOR', [self.c1]),
+                                     ('u_val2', 'Otro Jefe', 'VALIDADOR', [self.c2]), ('u_gab', 'Gabinete DG', 'GABINETE', [])]:
+            self.repo.guardar_usuario(self.admin, uid, nombre)
+            self.repo.guardar_permiso(self.admin, uid, rol, cs)
+        self.tok_if, self.inf = self.repo.abrir_sesion('u_if')
+        _, self.val = self.repo.abrir_sesion('u_val')
+        _, self.val2 = self.repo.abrir_sesion('u_val2')
+        _, self.gab = self.repo.abrir_sesion('u_gab')
+
+    def tearDown(self):
+        self.conn.close()
+
+    def proponer_avance(self, valor=70, sesion=None):
+        return self.repo.proponer(sesion or self.inf, {'tipo': 'avance', 'unidadId': self.u1, 'valor': valor, 'fechaReporte': d(0), 'nota': 'n'})
+
+    def estado(self, sid):
+        return self.conn.execute('SELECT Estado, IsDeleted FROM Solicitud WHERE Id = ?', (sid,)).fetchone()
+
+
+class TestIdentidad(Base):
+    def test_cuenta_sin_perfil_no_entra(self):
+        self.repo.guardar_usuario(self.admin, 'u_nuevo', 'Persona Nueva')
+        with self.assertRaises(r.AccesoDenegado):
+            self.repo.abrir_sesion('u_nuevo')
+
+    def test_token_se_guarda_solo_como_hash_y_logout_lo_revoca(self):
+        self.assertEqual(self.repo.sesion_desde_token(self.tok_if).rol, 'IF')
+        self.assertIsNone(self.conn.execute('SELECT 1 FROM Sesion WHERE TokenHash = ?', (self.tok_if,)).fetchone())
+        self.repo.logout(self.tok_if)
+        with self.assertRaises(r.AccesoDenegado):
+            self.repo.sesion_desde_token(self.tok_if)
+
+    def test_permiso_desactivado_corta_la_sesion(self):
+        self.repo.guardar_permiso(self.admin, 'u_if', 'IF', [self.c1], activo=False)
+        with self.assertRaises(r.AccesoDenegado):
+            self.repo.sesion_desde_token(self.tok_if)
+
+    def test_solo_admin_gestiona_permisos(self):
+        with self.assertRaises(r.AccesoDenegado):
+            self.repo.guardar_permiso(self.val, 'u_if', 'VALIDADOR', [self.c1])
+        with self.assertRaises(v.ErrorValidacion):
+            self.repo.guardar_permiso(self.admin, 'u_if', 'IF', [])
+
+
+class TestFlujo(Base):
+    def test_propuesta_queda_pendiente_con_vigente_y_trazabilidad(self):
+        sid = self.proponer_avance()
+        fila = self.conn.execute('SELECT Estado, ValorAvance, AutorId, EnviadoEn FROM Solicitud WHERE Id = ?', (sid,)).fetchone()
+        self.assertEqual(fila[:3], ('PENDIENTE_APROBACION', 70, 'u_if'))
+        self.assertIsNotNone(fila[3])
+        self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM SolicitudHistorial WHERE SolicitudId = ?', (sid,)).fetchone()[0], 1)
+
+    def test_no_dos_propuestas_activas_para_el_mismo_dato(self):
+        self.proponer_avance()
+        with self.assertRaises(v.ErrorValidacion):
+            self.proponer_avance(80)
+
+    def test_reglas_de_fechas(self):
+        with self.assertRaises(v.ErrorValidacion):
+            self.repo.proponer(self.inf, {'tipo': 'fecha_programada', 'hitoId': self.h1, 'valor': d(90)})
+        with self.assertRaises(v.ErrorValidacion):
+            self.repo.proponer(self.inf, {'tipo': 'fecha_real', 'hitoId': self.h1, 'valor': d(5)})
+        self.repo.proponer(self.inf, {'tipo': 'fecha_programada', 'hitoId': self.h1, 'valor': d(90), 'nota': 'Permisos'})
+
+    def test_aprobar_publica_el_dato_oficial(self):
+        sid = self.proponer_avance()
+        self.repo.aprobar(self.val, sid)
+        self.assertEqual(self.estado(sid)[0], 'APROBADO')
+        oficial = self.repo.listar_avances_oficiales(self.gab)
+        self.assertEqual([(a['UnidadId'], a['Valor']) for a in oficial], [(self.u1, 70)])
+        hist = self.repo.listar_historial_oficial(self.gab)
+        self.assertEqual((hist[0]['ValorAnterior'], hist[0]['ValorNuevo'], hist[0]['RevisorId']), (None, '70', 'u_val'))
+
+    def test_aprobar_fechas_actualiza_hito_oficial(self):
+        sp = self.repo.proponer(self.inf, {'tipo': 'fecha_programada', 'hitoId': self.h1, 'valor': d(90), 'nota': 'Permisos'})
+        self.repo.aprobar(self.val, sp)
+        sr = self.repo.proponer(self.inf, {'tipo': 'fecha_real', 'hitoId': self.h1, 'valor': d(-1)})
+        self.repo.aprobar(self.val, sr)
+        hito = self.repo.listar_hitos(self.gab)[0]
+        self.assertEqual((hito['FechaVigente'], hito['FechaReal']), (d(90), d(-1)))
+
+    def test_nadie_aprueba_lo_propio_ni_en_la_app_ni_en_la_base(self):
+        sid = self.proponer_avance(sesion=self.val)
+        with self.assertRaises(r.AccesoDenegado):
+            self.repo.aprobar(self.val, sid)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.conn.execute("UPDATE Solicitud SET Estado = 'APROBADO', RevisorId = AutorId WHERE Id = ?", (sid,))
+
+    def test_rechazo_exige_comentario_en_la_app_y_en_la_base(self):
+        sid = self.proponer_avance()
+        with self.assertRaises(v.ErrorValidacion):
+            self.repo.rechazar(self.val, sid, '  ')
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.conn.execute("UPDATE Solicitud SET Estado = 'RECHAZADO', RevisorId = 'u_val', ComentarioRevision = '' WHERE Id = ?", (sid,))
+        self.repo.rechazar(self.val, sid, 'Falta respaldo fotográfico')
+        self.assertEqual(self.estado(sid)[0], 'RECHAZADO')
+
+    def test_borrador_enviar_y_cancelar(self):
+        sid = self.repo.proponer(self.inf, {'tipo': 'avance', 'unidadId': self.u1, 'valor': 50, 'fechaReporte': d(0)}, enviar=False)
+        self.assertEqual(self.estado(sid)[0], 'BORRADOR')
+        self.repo.enviar(self.inf, sid)
+        self.repo.cancelar(self.inf, sid)
+        self.assertEqual(self.estado(sid), ('ELIMINADO', 1))
+
+    def test_no_se_cancela_lo_ya_revisado_ni_lo_ajeno(self):
+        sid = self.proponer_avance()
+        with self.assertRaises(r.AccesoDenegado):
+            self.repo.cancelar(self.val, sid)
+        self.repo.aprobar(self.val, sid)
+        with self.assertRaises(v.ErrorValidacion):
+            self.repo.cancelar(self.inf, sid)
+
+    def test_validador_de_otro_contrato_no_ve_ni_aprueba(self):
+        sid = self.proponer_avance()
+        self.assertEqual(self.repo.listar_solicitudes(self.val2), [])
+        with self.assertRaises(r.NoEncontrado):
+            self.repo.aprobar(self.val2, sid)
+
+    def test_if_no_puede_aprobar(self):
+        sid = self.proponer_avance(sesion=self.val)
+        with self.assertRaises(r.AccesoDenegado):
+            self.repo.aprobar(self.inf, sid)
+
+
+class TestGabineteYAislamiento(Base):
+    def test_gabinete_solo_lee_datos_oficiales(self):
+        self.proponer_avance(99)
+        with self.assertRaises(r.AccesoDenegado):
+            self.repo.listar_solicitudes(self.gab)
+        with self.assertRaises(r.AccesoDenegado):
+            self.repo.listar_problematicas(self.gab)
+        self.assertEqual(self.repo.listar_avances_oficiales(self.gab), [])   # la propuesta pendiente no es oficial
+        with self.assertRaises(r.AccesoDenegado):
+            self.proponer_avance(sesion=self.gab)
+
+    def test_if_solo_opera_en_sus_contratos(self):
+        with self.assertRaises(r.NoEncontrado):
+            self.repo.proponer(self.inf, {'tipo': 'avance', 'unidadId': self.u2, 'valor': 10, 'fechaReporte': d(0)})
+        self.assertEqual({u['ContratoId'] for u in self.repo.listar_unidades(self.inf)}, {self.c1})
+        with self.assertRaises(r.NoEncontrado):
+            self.repo.crear_problematica(self.inf, {'contratoId': self.c2, 'titulo': 't', 'descripcion': 'd'})
+
+    def test_alertas_para_gabinete(self):
+        pid = self.repo.crear_problematica(self.inf, {'unidadId': self.u1, 'titulo': 'Toma de terreno', 'descripcion': 'd',
+                                                      'nivelRiesgo': 'Extremo', 'escalamiento': ['Directora']})
+        with self.assertRaises(r.AccesoDenegado):
+            self.repo.publicar_alerta(self.inf, pid)
+        self.repo.publicar_alerta(self.val, pid)
+        self.assertEqual([a['Titulo'] for a in self.repo.listar_alertas(self.gab)], ['Toma de terreno'])
+        self.repo.retirar_alerta(self.val, pid)
+        self.assertEqual(self.repo.listar_alertas(self.gab), [])
+        self.assertEqual(self.conn.execute('SELECT IsDeleted FROM AlertaGabinete WHERE ProblematicaId = ?', (pid,)).fetchone()[0], 1)
+
+
+class TestIntegridad(Base):
+    def test_nada_se_borra_fisicamente(self):
+        sid = self.proponer_avance()
+        pid = self.repo.crear_problematica(self.inf, {'unidadId': self.u1, 'titulo': 't', 'descripcion': 'd'})
+        for sql, param in [('DELETE FROM Solicitud WHERE Id = ?', sid), ('DELETE FROM Problematica WHERE Id = ?', pid),
+                           ('DELETE FROM Hito WHERE Id = ?', self.h1), ('DELETE FROM Contrato WHERE Id = ?', self.c1)]:
+            with self.assertRaises(sqlite3.DatabaseError):
+                self.conn.execute(sql, (param,))
+        for tabla in ('SolicitudHistorial', 'Auditoria'):
+            with self.assertRaises(sqlite3.DatabaseError):
+                self.conn.execute(f'DELETE FROM {tabla}')
+
+    def test_eliminaciones_son_logicas(self):
+        self.repo.eliminar_hito(self.admin, self.h1)
+        self.assertEqual(self.repo.listar_hitos(self.admin), [])
+        self.assertEqual(self.conn.execute('SELECT IsDeleted FROM Hito WHERE Id = ?', (self.h1,)).fetchone()[0], 1)
+
+    def test_inyeccion_sql_se_guarda_como_texto(self):
+        carga = "x'); DROP TABLE Solicitud; --"
+        self.repo.proponer(self.inf, {'tipo': 'avance', 'unidadId': self.u1, 'valor': 10, 'fechaReporte': d(0), 'nota': carga})
+        self.assertEqual(self.repo.listar_solicitudes(self.inf)[0]['Nota'], carga)
+        with self.assertRaises(v.ErrorValidacion):
+            self.repo.proponer(self.inf, {'tipo': 'avance', 'unidadId': "u1' OR '1'='1", 'valor': 10, 'fechaReporte': d(0)})
+
+    def test_autoria_y_fechas_las_pone_el_servidor(self):
+        sid = self.repo.proponer(self.inf, {'tipo': 'avance', 'unidadId': self.u1, 'valor': 10, 'fechaReporte': d(0),
+                                            'autorId': 'u_admin', 'creadoEn': '1999-01-01', 'estado': 'APROBADO'})
+        fila = self.conn.execute('SELECT AutorId, CreadoEn, Estado FROM Solicitud WHERE Id = ?', (sid,)).fetchone()
+        self.assertEqual((fila[0], fila[2]), ('u_if', 'PENDIENTE_APROBACION'))
+        self.assertFalse(fila[1].startswith('1999'))
+
+    def test_validacion_de_entradas(self):
+        for valor in (150, -1, '10; DROP', True):
+            with self.assertRaises(v.ErrorValidacion):
+                self.repo.proponer(self.inf, {'tipo': 'avance', 'unidadId': self.u1, 'valor': valor, 'fechaReporte': d(0)})
+        self.assertEqual(v.texto('a‮b\x00c﻿', 10), 'abc')
+
+
+if __name__ == '__main__':
+    unittest.main(verbosity=2)
