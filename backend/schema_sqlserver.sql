@@ -42,6 +42,7 @@ CREATE TABLE bitacora.Contrato (
   Nombre          NVARCHAR(150) NOT NULL CHECK (LEN(Nombre) >= 1),
   UnidadLabel     NVARCHAR(50)  NOT NULL DEFAULT N'',
   CodDeaf         NVARCHAR(40)  NULL,                   -- código DEAF del contrato (único)
+  Peso            DECIMAL(5,2)  NULL CHECK (Peso BETWEEN 0 AND 100),   -- % del contrato en el avance global
   InspectorNombre NVARCHAR(150) NOT NULL DEFAULT N'',   -- IF titular (referencial)
   InspectorSuplente NVARCHAR(150) NOT NULL DEFAULT N'', -- IF suplente (referencial)
   CorreoAprobador NVARCHAR(254) NOT NULL DEFAULT N'',   -- a esta dirección se abre el aviso (mailto:)
@@ -69,6 +70,7 @@ CREATE TABLE bitacora.Unidad (
   Id         NVARCHAR(64)  NOT NULL PRIMARY KEY,
   ContratoId NVARCHAR(64)  NOT NULL REFERENCES bitacora.Contrato(Id),
   Nombre     NVARCHAR(150) NOT NULL CHECK (LEN(Nombre) >= 1),
+  Peso       DECIMAL(5,2)  NULL CHECK (Peso BETWEEN 0 AND 100),  -- % de la unidad dentro de su contrato
   Activo     BIT           NOT NULL DEFAULT 1
 );
 CREATE TABLE bitacora.Hito (

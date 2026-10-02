@@ -62,12 +62,12 @@ _ASIGNADOS = 'SELECT ContratoId FROM UsuarioContrato WHERE UsuarioId = ? AND Act
 
 # Lecturas: (nombre, por_usuario) -> SQL literal. Las variantes "por usuario" reciben el id de la sesión.
 _LECTURAS = {
-    ('contratos', False): 'SELECT Id, Nombre, CodDeaf, UnidadLabel, InspectorNombre, InspectorSuplente, CorreoAprobador, Activo FROM Contrato ORDER BY Nombre',
-    ('contratos', True): 'SELECT c.Id, c.Nombre, c.CodDeaf, c.UnidadLabel, c.InspectorNombre, c.InspectorSuplente, c.CorreoAprobador, c.Activo, '
+    ('contratos', False): 'SELECT Id, Nombre, CodDeaf, Peso, UnidadLabel, InspectorNombre, InspectorSuplente, CorreoAprobador, Activo FROM Contrato ORDER BY Nombre',
+    ('contratos', True): 'SELECT c.Id, c.Nombre, c.CodDeaf, c.Peso, c.UnidadLabel, c.InspectorNombre, c.InspectorSuplente, c.CorreoAprobador, c.Activo, '
                          '(SELECT uc.RolContrato FROM UsuarioContrato uc WHERE uc.UsuarioId = ? AND uc.ContratoId = c.Id AND uc.Activo = 1) AS RolContrato '
                          'FROM Contrato c WHERE c.Id IN (' + _ASIGNADOS + ') ORDER BY c.Nombre',
-    ('unidades', False): 'SELECT Id, ContratoId, Nombre, Activo FROM Unidad ORDER BY Nombre',
-    ('unidades', True): 'SELECT Id, ContratoId, Nombre, Activo FROM Unidad WHERE ContratoId IN (' + _ASIGNADOS + ') ORDER BY Nombre',
+    ('unidades', False): 'SELECT Id, ContratoId, Nombre, Peso, Activo FROM Unidad ORDER BY Nombre',
+    ('unidades', True): 'SELECT Id, ContratoId, Nombre, Peso, Activo FROM Unidad WHERE ContratoId IN (' + _ASIGNADOS + ') ORDER BY Nombre',
     ('hitos', False): 'SELECT h.Id, h.ContratoId, h.UnidadId, h.Nombre, h.Tipo, h.FechaContractual, o.FechaVigente, o.FechaReal '
                       'FROM Hito h LEFT JOIN HitoOficial o ON o.HitoId = h.Id WHERE h.IsDeleted = 0 ORDER BY h.FechaContractual',
     ('hitos', True): 'SELECT h.Id, h.ContratoId, h.UnidadId, h.Nombre, h.Tipo, h.FechaContractual, o.FechaVigente, o.FechaReal '
@@ -120,6 +120,24 @@ _UNA = {
     ('tarea', False): 'SELECT ContratoId FROM ProblematicaTarea WHERE Id = ?',
     ('tarea', True): 'SELECT ContratoId FROM ProblematicaTarea WHERE Id = ? AND ContratoId IN (' + _ASIGNADOS + ')',
 }
+
+
+def promedio_ponderado(items, todos_pesos):
+    """Misma regla que el frontend (bitacora-obra.html, promedioAvance).
+    items: [(valor, peso|None)] de los elementos CON dato; todos_pesos: pesos (o None) de TODOS los elementos del conjunto.
+    Si todos tienen peso se pondera (re-normalizando entre los que tienen dato); si falta alguno, promedio simple.
+    Los elementos sin dato no cuentan como 0. Devuelve (porcentaje entero | None, ponderado: bool)."""
+    ponderable = bool(todos_pesos) and all(p is not None for p in todos_pesos)
+    if not items:
+        return None, ponderable
+    suma = sum(p for _, p in items) if ponderable else 0
+    if ponderable and suma > 0:
+        return _redondear(sum(v * p for v, p in items) / suma), True
+    return _redondear(sum(v for v, _ in items) / len(items)), False
+
+
+def _redondear(x):
+    return int(x + 0.5)      # como Math.round de JavaScript (mitades hacia arriba)
 
 
 class Repositorio:
@@ -471,6 +489,68 @@ class Repositorio:
         cur = self._cursor(sesion)
         cur.execute(_LECTURAS[('contratos', por_usuario)], (sesion.usuario_id, sesion.usuario_id) if por_usuario else ())
         return self._filas(cur)
+
+    def avance_contrato(self, sesion, contrato_id):
+        """Avance oficial del contrato: promedio de sus unidades activas, ponderado por Peso cuando todas lo tienen."""
+        contrato_id = v.ident(contrato_id, 'contrato')
+        unidades = [u for u in self.listar_unidades(sesion) if u['ContratoId'] == contrato_id and u['Activo']]
+        valores = {a['UnidadId']: a['Valor'] for a in self.listar_avances_oficiales(sesion) if a['ContratoId'] == contrato_id}
+        con_dato = [(valores[u['Id']], u['Peso']) for u in unidades if u['Id'] in valores]
+        pct, ponderado = promedio_ponderado(con_dato, [u['Peso'] for u in unidades])
+        return {'pct': pct, 'ponderado': ponderado, 'reportadas': len(con_dato), 'total': len(unidades)}
+
+    def avance_global(self, sesion):
+        """Promedio de los contratos activos del alcance, ponderado por el Peso del contrato cuando todos lo tienen."""
+        contratos = [c for c in self.listar_contratos(sesion) if c['Activo']]
+        parciales = [(c, self.avance_contrato(sesion, c['Id'])['pct']) for c in contratos]
+        con_dato = [(pct, c['Peso']) for c, pct in parciales if pct is not None]
+        pct, ponderado = promedio_ponderado(con_dato, [c['Peso'] for c in contratos])
+        return {'pct': pct, 'ponderado': ponderado}
+
+    def guardar_pesos_unidades(self, sesion, contrato_id, pesos):
+        """pesos: {unidad_id: porcentaje}. Deben estar TODAS las unidades activas del contrato y sumar exactamente 100.
+        Las unidades desactivadas conservan su peso pero no cuentan. Todo o nada."""
+        self._exigir(sesion, 'ADMIN')
+        contrato_id = v.ident(contrato_id, 'contrato')
+        cur = self._cursor(sesion)
+        cur.execute('SELECT Id FROM Unidad WHERE ContratoId = ? AND Activo = 1', (contrato_id,))
+        activas = [f[0] for f in cur.fetchall()]
+        if not activas:
+            raise NoEncontrado('unidades activas del contrato')
+        self._guardar_pesos(cur, sesion, 'Unidad', activas, pesos, contrato_id)
+
+    def guardar_pesos_contratos(self, sesion, pesos):
+        """pesos: {contrato_id: porcentaje} para TODOS los contratos activos; suman exactamente 100."""
+        self._exigir(sesion, 'ADMIN')
+        cur = self._cursor(sesion)
+        cur.execute('SELECT Id FROM Contrato WHERE Activo = 1')
+        activos = [f[0] for f in cur.fetchall()]
+        if not activos:
+            raise NoEncontrado('contratos activos')
+        self._guardar_pesos(cur, sesion, 'Contrato', activos, pesos, None)
+
+    def _guardar_pesos(self, cur, sesion, tabla, ids, pesos, contrato_id):
+        if not isinstance(pesos, dict) or set(pesos) != set(ids):
+            raise v.ErrorValidacion('pesos: deben indicarse exactamente todos los elementos activos')
+        centavos, limpios = 0, {}
+        for k in ids:
+            n = pesos[k]
+            if isinstance(n, bool) or not isinstance(n, (int, float, str)):
+                raise v.ErrorValidacion('peso: debe ser un número')
+            try:
+                n = float(str(n).replace(',', '.'))
+            except ValueError:
+                raise v.ErrorValidacion('peso: debe ser un número')
+            if not 0 <= n <= 100 or round(n * 100) != n * 100 and abs(round(n * 100) - n * 100) > 1e-6:
+                raise v.ErrorValidacion('peso: entre 0 y 100, con hasta 2 decimales')
+            limpios[k] = round(n, 2)
+            centavos += round(n * 100)
+        if centavos != 10000:
+            raise v.ErrorValidacion(f'pesos: suman {centavos / 100:g}%, deben sumar exactamente 100%')
+        for k, n in limpios.items():
+            cur.execute(f'UPDATE {tabla} SET Peso = ? WHERE Id = ?', (n, k))      # el nombre de tabla es una constante interna
+        self._auditar(cur, sesion, 'pesos', tabla, contrato_id, contrato_id, f'{len(limpios)} pesos')
+        self.conn.commit()
 
     def listar_unidades(self, sesion):
         return self._leer(sesion, 'unidades', oficial=True)

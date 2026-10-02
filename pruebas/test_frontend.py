@@ -507,6 +507,7 @@ def escenario_gabinete(p):
         check('Muestra el avance aprobado (62%) y no la propuesta pendiente (99%)', '62%' in cuerpo and '99%' not in cuerpo and 'NO-APROBADO' not in cuerpo)
         check('Lista la alerta publicada y no la retirada', 'Alerta publicada' in cuerpo and 'ALERTA-RETIRADA' not in cuerpo)
         check('Semáforo rojo por alerta extrema', page.inner_text('.ccard[data-cid=c1] .sem') == 'Rojo')
+        check('Sin pesos definidos usa promedio simple y lo dice', 'promedio simple' in page.inner_text('.ccard[data-cid=c1]'))
         n_rojo, n_amb, n_verde = [page.inner_text(f'#gbKpis .sem-fig.{c} .sem-n') for c in ('bad', 'warn', 'good')]
         check('Semáforo: tres cifras con color y etiqueta ("1 contrato en rojo")', (n_rojo, n_amb, n_verde) == ('1', '0', '1') and '1 contrato en rojo' in ' '.join(page.inner_text('#gbKpis .sem-fig.bad').split())
               and '0 contratos en ámbar' in ' '.join(page.inner_text('#gbKpis .sem-fig.warn').split()) and '1 contrato en verde' in ' '.join(page.inner_text('#gbKpis .sem-fig.good').split()), (n_rojo, n_amb, n_verde))
@@ -776,6 +777,74 @@ def escenario_cargas_admin(p):
         shutil.rmtree(tmpd, ignore_errors=True)
 
 
+def escenario_pesos(p):
+    print('\nD3. Pesos de contratos y subsectores (avance ponderado)')
+    seed = base()
+    seed['unidades/u1']['peso'] = 70
+    seed['unidades/u1b'] = {'contratoId': 'c1', 'nombre': 'Aeródromo Segundo', 'activo': True, 'peso': 30}
+    seed['oficial/avance-u1b'] = {'tipo': 'avance', 'contratoId': 'c1', 'unidadId': 'u1b', 'valor': 40, 'fechaReporte': d(-5), 'aprobadoTs': 1790000000000}
+    seed['unidades/u2']['peso'] = 100
+    seed['oficial/avance-u2'] = {'tipo': 'avance', 'contratoId': 'c2', 'unidadId': 'u2', 'valor': 20, 'fechaReporte': d(-5), 'aprobadoTs': 1790000000000}
+    seed['contratos/c1']['peso'] = 75
+    seed['contratos/c2']['peso'] = 25
+    browser, page, errores = abrir(p, {'uid': 'u_admin', 'name': 'Admin Central', 'level': 'admin', 'seed': seed})
+    try:
+        ingresar(page)
+        c1 = '.ccard[data-cid=c1]'
+        check('Avance del contrato ponderado por el peso de sus subsectores (70%×62 + 30%×40 = 55%, no el simple 51%)',
+              page.inner_text(c1 + ' .av-num') == '55%' and 'ponderado por peso' in page.inner_text(c1), page.inner_text(c1 + ' .av-num'))
+        kpi = page.inner_text('#ctKpis .kpi >> nth=0')
+        check('Avance global ponderado por el peso de los contratos (75%×55 + 25%×20 = 46%, no el simple 38%)', '46%' in kpi and 'ponderado por peso' in kpi, kpi)
+        tab(page, 'config')
+        d1 = '#cfUnidades details.uc[data-cid=c1]'
+        check('Cada subsector muestra su peso y la suma del contrato', page.input_value(d1 + ' tr[data-id=u1] .f-peso') == '70' and 'Suma: 100% ✓' in page.inner_text(d1 + ' .js-peso-suma'), page.inner_text(d1 + ' .js-peso-suma'))
+        n = len(escrituras(page))
+        page.fill(d1 + ' tr[data-id=u1] .f-peso', '60')
+        check('La suma se actualiza al escribir y dice cuánto falta', 'Suma: 90% · faltan 10%' in page.inner_text(d1 + ' .js-peso-suma'), page.inner_text(d1 + ' .js-peso-suma'))
+        page.click(d1 + ' .js-guardar-pesos')
+        check('Pesos que no suman 100% no se guardan', 'exactamente 100%' in toast(page) and len(escrituras(page)) == n)
+        page.fill(d1 + ' tr[data-id=u1] .f-peso', 'abc')
+        page.click(d1 + ' .js-guardar-pesos')
+        check('Un peso no numérico no se guarda', 'Indica el peso' in toast(page) and len(escrituras(page)) == n)
+        page.fill(d1 + ' tr[data-id=u1] .f-peso', '60,5')
+        page.fill(d1 + ' tr[data-id=u1b] .f-peso', '39,5')
+        check('Acepta coma decimal', 'Suma: 100% ✓' in page.inner_text(d1 + ' .js-peso-suma'))
+        page.click(d1 + ' .js-guardar-pesos')
+        page.wait_for_function('([n]) => window.__T.writes.length >= n + 2', arg=[n], timeout=8000)
+        nuevas = escrituras(page)[n:]
+        check('Se guarda solo el campo peso de cada subsector', sorted((w['path'], json.dumps(w['data'])) for w in nuevas) == [('unidades/u1', '{"peso": 60.5}'), ('unidades/u1b', '{"peso": 39.5}')], nuevas)
+        tab(page, 'contratos')
+        check('El avance se recalcula con los nuevos pesos (60,5%×62 + 39,5%×40 = 53%)', page.inner_text(c1 + ' .av-num') == '53%', page.inner_text(c1 + ' .av-num'))
+        tab(page, 'config')
+        page.click(d1 + ' .js-repartir')
+        check('"Repartir en partes iguales" llena 50 y 50', page.input_value(d1 + ' tr[data-id=u1] .f-peso') == '50' and page.input_value(d1 + ' tr[data-id=u1b] .f-peso') == '50' and 'Suma: 100% ✓' in page.inner_text(d1 + ' .js-peso-suma'))
+        n = len(escrituras(page))
+        page.fill(d1 + ' tr[data-id=u1] .f-nombre', 'Aeródromo Principal')
+        page.click(d1 + ' tr[data-id=u1] .js-save')
+        nuevas = esperar(page, 'unidades/u1', n)
+        check('Editar el nombre de un subsector no pierde su peso guardado', nuevas[-1]['data']['nombre'] == 'Aeródromo Principal' and nuevas[-1]['data']['peso'] == 60.5, nuevas[-1])
+        # contratos
+        pc = '#cfPesoContratos'
+        check('Bloque de peso de cada contrato con su suma', page.input_value(pc + ' tr[data-cid=c1] .f-pesoc') == '75' and 'Suma: 100% ✓' in page.inner_text(pc + ' .js-peso-suma'))
+        n = len(escrituras(page))
+        page.fill(pc + ' tr[data-cid=c1] .f-pesoc', '80')
+        page.click(pc + ' .js-guardar-pesos-c')
+        check('Pesos de contratos que suman 105% no se guardan', 'suman 105%' in toast(page) and len(escrituras(page)) == n, toast(page))
+        page.click(pc + ' .js-repartir-c')
+        page.click(pc + ' .js-guardar-pesos-c')
+        page.wait_for_function('([n]) => window.__T.writes.length >= n + 2', arg=[n], timeout=8000)
+        nuevas = escrituras(page)[n:]
+        check('Pesos de contratos guardados (50/50) sin tocar otros campos', sorted((w['path'], json.dumps(w['data'])) for w in nuevas) == [('contratos/c1', '{"peso": 50}'), ('contratos/c2', '{"peso": 50}')], nuevas)
+        n = len(escrituras(page))
+        page.fill('#cfContratos tr[data-id=c1] .f-nombre', 'Red Aeroportuaria Austral')
+        page.click('#cfContratos tr[data-id=c1] .js-save')
+        nuevas = esperar(page, 'contratos/c1', n)
+        check('Guardar el formulario del contrato conserva su peso', nuevas[-1]['data'].get('peso') == 50, nuevas[-1])
+        check('Sin errores de JavaScript', not errores, errores)
+    finally:
+        browser.close()
+
+
 def escenario_sin_perfil(p):
     print('\nE. Colaborador sin perfil asignado')
     browser, page, errores = abrir(p, {'uid': 'u_nuevo', 'name': 'Persona Nueva', 'level': 'interact', 'seed': base()})
@@ -826,13 +895,13 @@ def escenario_local(p):
         page.select_option('#verComo', 'gabinete')
         page.wait_for_timeout(500)
         av = page.inner_text('#panel-gabinete .ccard[data-cid=dA] .av-num')
-        check('Gabinete ve el nuevo promedio oficial (68% y 55% → 62%)', av == '62%', av)
+        check('Gabinete ve el nuevo avance oficial ponderado (70%×68 + 30%×55 = 64%)', av == '64%' and 'ponderado por peso' in page.inner_text('#panel-gabinete .ccard[data-cid=dA]'), av)
 
         page.click('#btnRestablecer')
         page.click('#btnRestablecer')
         page.wait_for_timeout(500)
         av = page.inner_text('#panel-gabinete .ccard[data-cid=dA] .av-num')
-        check('Restablecer vuelve a los datos de ejemplo (68% y 41% → 55%)', av == '55%', av)
+        check('Restablecer vuelve a los datos de ejemplo (70%×68 + 30%×41 = 60%)', av == '60%', av)
         check('Ninguna carga XSS y sin errores de JavaScript', page.evaluate('window.__T.xss') == 0 and not errores, errores)
     finally:
         browser.close()
@@ -883,6 +952,7 @@ if __name__ == '__main__':
         escenario_gabinete(p)
         escenario_admin(p)
         escenario_cargas_admin(p)
+        escenario_pesos(p)
         escenario_sin_perfil(p)
         escenario_local(p)
         escenario_entregable(p)

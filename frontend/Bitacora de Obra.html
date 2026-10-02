@@ -413,6 +413,10 @@
   .uc > summary::before{ content:"▸"; color:var(--ink-soft); }
   .uc[open] > summary::before{ content:"▾"; }
   .uc-body{ padding:0 16px 14px; }
+  .peso-in{ width:96px !important; text-align:right; }
+  .peso-res{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between; margin-top:10px; }
+  .peso-suma{ font-size:12.5px; font-weight:700; }
+  .peso-suma.ok{ color:var(--good); } .peso-suma.mal{ color:var(--warn); }
   .uc-add{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
   .uc-add input{ flex:1; min-width:220px; }
 
@@ -602,6 +606,9 @@
         </div>
         <div class="table-wrap" style="margin-top:12px;"><table><thead><tr><th>COD_DEAF</th><th>Contrato</th><th>Nombra sus unidades como</th><th>IF titular (referencial)</th><th>IF suplente (referencial)</th><th>Correo del aprobador</th><th>Activo</th><th></th></tr></thead><tbody id="cfContratos"></tbody></table></div>
         <div style="margin-top:10px;"><button class="btn secondary small" type="button" id="btnAddContrato">+ Agregar contrato</button></div>
+        <p class="section-title">Peso de cada contrato en el avance global</p>
+        <p class="helper">El % de avance global es un promedio <strong>ponderado</strong> por estos pesos (deben sumar 100% entre los contratos activos). Mientras a algún contrato le falte su peso, el sistema usa promedio simple y lo indica.</p>
+        <div class="card" id="cfPesoContratos"></div>
         <p class="section-title">Unidades y subsectores</p>
         <div class="card imp-box">
           <strong>Carga de subsectores por Excel o CSV</strong>
@@ -745,6 +752,13 @@
   }
   var EMAIL_RE = /^[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}$/;
   function cleanEmail(v){ var s = cleanStr(v, LIM.correo); return (s && s.length <= LIM.correo && EMAIL_RE.test(s)) ? s : ''; }
+  function cleanPeso(v){ return (typeof v === 'number' && isFinite(v) && v >= 0 && v <= 100) ? Math.round(v * 100) / 100 : null; }
+  function parsePeso(v){
+    var t = (typeof v === 'number' ? String(v) : (typeof v === 'string' ? v.trim().replace(',', '.') : ''));
+    if(!/^\d{1,3}(\.\d{1,2})?$/.test(t)) return null;
+    var n = Number(t); return n <= 100 ? n : null;
+  }
+  function fmtPeso(n){ return (Math.round(n * 100) / 100).toLocaleString('es-CL', {maximumFractionDigits:2}) + '%'; }
   function cleanId(v){ return (typeof v === 'string' && ID_RE.test(v) && v !== '.' && v !== '..') ? v : null; }
   function cleanTs(v){ var max = Date.now() + 86400000; return (typeof v === 'number' && isFinite(v) && v > 0 && v < max) ? Math.floor(v) : 0; }
   function keys(list){ return list.map(function(x){ return x.key; }); }
@@ -774,12 +788,12 @@
   function normContrato(d){
     var id = cleanId(d.id); if(!id) return null;
     var x = docData(d);
-    return { id:id, nombre: cleanStr(x.nombre, LIM.nombre) || '(sin nombre)', codDeaf: cleanStr(x.codDeaf, LIM.codDeaf), unidadLabel: cleanStr(x.unidadLabel, LIM.label), inspectorNombre: cleanStr(x.inspectorNombre, LIM.inspector), inspectorSuplente: cleanStr(x.inspectorSuplente, LIM.inspector), correoAprobador: cleanEmail(x.correoAprobador), activo: x.activo !== false };
+    return { id:id, nombre: cleanStr(x.nombre, LIM.nombre) || '(sin nombre)', codDeaf: cleanStr(x.codDeaf, LIM.codDeaf), unidadLabel: cleanStr(x.unidadLabel, LIM.label), inspectorNombre: cleanStr(x.inspectorNombre, LIM.inspector), inspectorSuplente: cleanStr(x.inspectorSuplente, LIM.inspector), correoAprobador: cleanEmail(x.correoAprobador), peso: cleanPeso(x.peso), activo: x.activo !== false };
   }
   function normUnidad(d){
     var id = cleanId(d.id), x = docData(d), cid = cleanId(x.contratoId);
     if(!id || !cid) return null;
-    return { id:id, contratoId:cid, nombre: cleanStr(x.nombre, LIM.nombre) || '(sin nombre)', activo: x.activo !== false };
+    return { id:id, contratoId:cid, nombre: cleanStr(x.nombre, LIM.nombre) || '(sin nombre)', peso: cleanPeso(x.peso), activo: x.activo !== false };
   }
   function normHito(d){
     var id = cleanId(d.id), x = docData(d), cid = cleanId(x.contratoId);
@@ -990,15 +1004,15 @@
   };
   /* Datos de ejemplo (ficticios) para el primer arranque en modo local. */
   var DATOS_EJEMPLO = {
-    'contratos/dA': { nombre:'Red Aeroportuaria Ejemplo', codDeaf:'DEMO-001', unidadLabel:'Aeródromo', inspectorNombre:'IF titular (demo)', inspectorSuplente:'IF suplente (demo)', correoAprobador:'jefe.depto.demo@example.org' },
-    'contratos/dB': { nombre:'Teleférico Ejemplo', codDeaf:'DEMO-002', unidadLabel:'Estación', inspectorNombre:'IF titular (demo)', inspectorSuplente:'', correoAprobador:'jefe.depto.demo@example.org' },
-    'contratos/dC': { nombre:'Grupo de Cárceles Ejemplo', codDeaf:'DEMO-003', unidadLabel:'Cárcel', inspectorNombre:'IF Cárceles (demo)', inspectorSuplente:'', correoAprobador:'' },
-    'unidades/uA1': { contratoId:'dA', nombre:'Aeródromo Norte', activo:true },
-    'unidades/uA2': { contratoId:'dA', nombre:'Aeródromo Sur', activo:true },
-    'unidades/uB1': { contratoId:'dB', nombre:'Estación Base', activo:true },
-    'unidades/uB2': { contratoId:'dB', nombre:'Estación Cumbre', activo:true },
-    'unidades/uC1': { contratoId:'dC', nombre:'Cárcel Norte', activo:true },
-    'unidades/uC2': { contratoId:'dC', nombre:'Cárcel Sur', activo:true },
+    'contratos/dA': { peso:50, nombre:'Red Aeroportuaria Ejemplo', codDeaf:'DEMO-001', unidadLabel:'Aeródromo', inspectorNombre:'IF titular (demo)', inspectorSuplente:'IF suplente (demo)', correoAprobador:'jefe.depto.demo@example.org' },
+    'contratos/dB': { peso:30, nombre:'Teleférico Ejemplo', codDeaf:'DEMO-002', unidadLabel:'Estación', inspectorNombre:'IF titular (demo)', inspectorSuplente:'', correoAprobador:'jefe.depto.demo@example.org' },
+    'contratos/dC': { peso:20, nombre:'Grupo de Cárceles Ejemplo', codDeaf:'DEMO-003', unidadLabel:'Cárcel', inspectorNombre:'IF Cárceles (demo)', inspectorSuplente:'', correoAprobador:'' },
+    'unidades/uA1': { peso:70, contratoId:'dA', nombre:'Aeródromo Norte', activo:true },
+    'unidades/uA2': { peso:30, contratoId:'dA', nombre:'Aeródromo Sur', activo:true },
+    'unidades/uB1': { peso:50, contratoId:'dB', nombre:'Estación Base', activo:true },
+    'unidades/uB2': { peso:50, contratoId:'dB', nombre:'Estación Cumbre', activo:true },
+    'unidades/uC1': { peso:50, contratoId:'dC', nombre:'Cárcel Norte', activo:true },
+    'unidades/uC2': { peso:50, contratoId:'dC', nombre:'Cárcel Sur', activo:true },
     'hitos/hA1': { contratoId:'dA', unidadId:'uA1', nombre:'Ingeniería de detalle', tipo:'Ingeniería', fechaContractual:'2026-03-31' },
     'hitos/hA2': { contratoId:'dA', unidadId:'uA1', nombre:'Inicio de obras', tipo:'Inicio Físico', fechaContractual:'2026-05-15' },
     'hitos/hA3': { contratoId:'dA', unidadId:'uA1', nombre:'PSP Aeródromo Norte', tipo:'PSP', fechaContractual:'2026-11-30' },
@@ -1061,7 +1075,7 @@
       recibos:Object.create(null), recibosCargados:Object.create(null), cuentas:Object.create(null),
       expRadar:new Set(), expHist:new Set(), expanded:new Set(), confirmar:new Set(), rechazando:new Set(), rechazoTexto:Object.create(null),
       solFiltro:'PENDIENTE_APROBACION', permEdits:Object.create(null), permNuevos:[], permHits:[], pbSoloCentral:false,
-      leidoTs:0, notifAbierto:false, modal:null, correoEdits:Object.create(null), gbFiltro:'todo', gbLimite:10, semFiltro:null, imp:{ contratos:null, unidades:null }, uAbierto:Object.create(null)
+      leidoTs:0, notifAbierto:false, modal:null, correoEdits:Object.create(null), gbFiltro:'todo', gbLimite:10, semFiltro:null, imp:{ contratos:null, unidades:null }, uAbierto:Object.create(null), pesoEdits:Object.create(null), pesoCEdits:Object.create(null)
     };
   }
   function fail(msg){ var e = new Error(msg); e.code = 'validacion'; return e; }
@@ -1153,9 +1167,24 @@
     if(maxDesv > 0 || al.length) return { cls:'warn', label:'Ámbar' };
     return { cls:'good', label:'Verde' };
   }
+  /* Promedio de avance. items = [{valor, peso|null}] de los elementos CON dato; todos = todos los elementos del conjunto
+     (tengan o no dato). Si todos tienen peso, se pondera (los pesos se re-normalizan entre los que tienen dato); si a alguno
+     le falta el peso, promedio simple. Los sin dato no cuentan como 0 (igual que antes). */
+  function promedioAvance(items, todos){
+    var ponderable = todos.length > 0 && todos.every(function(x){ return x.peso !== null; });
+    if(!items.length) return { pct:null, ponderado:ponderable };
+    var suma = ponderable ? items.reduce(function(s, i){ return s + i.peso; }, 0) : 0;
+    if(ponderable && suma > 0) return { pct: Math.round(items.reduce(function(s, i){ return s + i.valor * i.peso; }, 0) / suma), ponderado:true };
+    return { pct: Math.round(items.reduce(function(s, i){ return s + i.valor; }, 0) / items.length), ponderado:false };
+  }
   function avanceContrato(cid){
-    var us = unidadesDe(cid), vals = us.map(function(u){ return State.ofAvance[u.id]; }).filter(Boolean);
-    return { pct: vals.length ? Math.round(vals.reduce(function(s, o){ return s + o.valor; }, 0) / vals.length) : null, reportadas: vals.length, total: us.length };
+    var us = unidadesDe(cid), con = us.filter(function(u){ return State.ofAvance[u.id]; });
+    var r = promedioAvance(con.map(function(u){ return { valor:State.ofAvance[u.id].valor, peso:u.peso }; }), us);
+    return { pct:r.pct, ponderado:r.ponderado, reportadas:con.length, total:us.length };
+  }
+  function avanceGlobal(cs){
+    var con = cs.map(function(c){ return { c:c, pct:avanceContrato(c.id).pct }; }).filter(function(x){ return x.pct !== null; });
+    return promedioAvance(con.map(function(x){ return { valor:x.pct, peso:x.c.peso }; }), cs);
   }
   function diasRevision(s){
     if(!s.enviadoTs) return null;
@@ -1292,6 +1321,8 @@
       if(mail && !cleanEmail(mail)) throw fail('El correo del aprobador no tiene un formato válido.');
       var data = { nombre: cleanStr(f.nombre, LIM.nombre), codDeaf: cleanStr(f.codDeaf, LIM.codDeaf), unidadLabel: cleanStr(f.unidadLabel, LIM.label), inspectorNombre: cleanStr(f.inspectorNombre, LIM.inspector), inspectorSuplente: cleanStr(f.inspectorSuplente, LIM.inspector), correoAprobador: cleanEmail(mail), activo: f.activo !== false };
       if(!data.nombre) throw fail('El contrato necesita un nombre.');
+      var previo = id ? findContrato(id) : null;
+      if(previo && previo.peso !== null) data.peso = previo.peso;   // este formulario no toca el peso (se edita en su propio bloque)
       if(data.codDeaf){
         if(!COD_DEAF_RE.test(data.codDeaf)) throw fail('COD_DEAF solo admite letras, números y . _ - /');
         if(contratos.some(function(c){ return c.id !== id && c.codDeaf && c.codDeaf.toLowerCase() === data.codDeaf.toLowerCase(); })) throw fail('Ya existe otro contrato con ese COD_DEAF.');
@@ -1304,8 +1335,37 @@
       if(!cid || !findContrato(cid)) throw fail('Elige un contrato válido.');
       var data = { contratoId:cid, nombre: cleanStr(f.nombre, LIM.nombre), activo: f.activo === true };
       if(!data.nombre) throw fail('El subsector necesita un nombre.');
+      var previoU = id ? findIn(State.unidades, id) : null;
+      if(previoU && previoU.peso !== null) data.peso = previoU.peso;
       if(State.unidades.some(function(u){ return u.id !== id && u.contratoId === cid && u.nombre.toLowerCase() === data.nombre.toLowerCase(); })) throw fail('Ese contrato ya tiene un subsector con ese nombre.');
       return id ? db.doc('unidades/' + id).set(data) : db.collection('unidades').add(data);
+    },
+    guardarPesosUnidades: async function(contratoId, mapa){
+      if(Session.role !== 'admin') throw fail('Solo el administrador configura los pesos.');
+      var cid = cleanId(contratoId), us = State.unidades.filter(function(u){ return u.contratoId === cid && u.activo; });
+      if(!cid || !findContrato(cid)) throw fail('Contrato inválido.');
+      if(!us.length) throw fail('Este contrato no tiene subsectores activos.');
+      var vals = {}, centavos = 0;
+      us.forEach(function(u){
+        var n = parsePeso(mapa[u.id]);
+        if(n === null) throw fail('Indica el peso de «' + u.nombre + '»: un número entre 0 y 100, con hasta 2 decimales.');
+        vals[u.id] = n; centavos += Math.round(n * 100);
+      });
+      if(centavos !== 10000) throw fail('Los pesos suman ' + fmtPeso(centavos / 100) + ': deben sumar exactamente 100%.');
+      for(var i = 0; i < us.length; i++) await db.doc('unidades/' + us[i].id).update({ peso: vals[us[i].id] });
+    },
+    guardarPesosContratos: async function(mapa){
+      if(Session.role !== 'admin') throw fail('Solo el administrador configura los pesos.');
+      var cs = contratos.filter(function(c){ return c.activo; });
+      if(!cs.length) throw fail('No hay contratos activos.');
+      var vals = {}, centavos = 0;
+      cs.forEach(function(c){
+        var n = parsePeso(mapa[c.id]);
+        if(n === null) throw fail('Indica el peso de «' + c.nombre + '»: un número entre 0 y 100, con hasta 2 decimales.');
+        vals[c.id] = n; centavos += Math.round(n * 100);
+      });
+      if(centavos !== 10000) throw fail('Los pesos suman ' + fmtPeso(centavos / 100) + ': deben sumar exactamente 100%.');
+      for(var i = 0; i < cs.length; i++) await db.doc('contratos/' + cs[i].id).update({ peso: vals[cs[i].id] });
     },
     importarContratos: async function(items){
       if(Session.role !== 'admin') throw fail('Solo el administrador carga contratos.');
@@ -2006,19 +2066,18 @@
     var pend = soloOficial ? 0 : State.solicitudes.filter(function(s){ return s.contratoId === c.id && s.estado === 'PENDIENTE_APROBACION'; }).length;
     var nU = unidadesDe(c.id).length, etiqueta = (c.unidadLabel || 'unidad').toLowerCase();
     var abiertoR = State.expRadar.has(c.id), abiertoH = State.expHist.has(c.id), key = 'av-' + c.id;
-    return html`<article class="ccard sem-${sem.cls}" data-cid="${c.id}"><header class="ccard-head"><div><h3>${c.nombre}${rolContratoPill(c.id)}</h3><div class="ccard-meta">${nU} ${plural(etiqueta, nU)}${c.inspectorNombre ? ' · IF: ' + c.inspectorNombre : ''}</div></div><span class="sem ${sem.cls}" title="Semáforo del contrato (según hitos y alertas aprobadas)">${sem.label}</span></header><div><div class="av-top"><span class="av-lbl">Avance físico vigente</span><span class="av-num mono">${av.pct === null ? '—' : av.pct + '%'}</span></div><div class="bar"><div class="bar-fill" data-key="${key}" data-pct="${av.pct || 0}" style="width:${barPrev(key)}%"></div></div><div class="av-sub">${av.pct === null ? 'Sin reportes aprobados' : av.reportadas + ' de ' + av.total + ' ' + plural(etiqueta, av.total) + ' con reporte aprobado'}${pend ? pill('warn', pend + ' en revisión') : ''}</div></div>${renderRadar(pasos, abiertoR)}${abiertoR ? renderDesglose(c) : ''}<footer class="ccard-foot"><button type="button" class="link-btn js-hist" aria-expanded="${abiertoH ? 'true' : 'false'}">${abiertoH ? 'Ocultar bitácora histórica ▲' : 'Bitácora histórica ▾'}</button>${al.length ? pill('bad', al.length + ' alerta' + (al.length > 1 ? 's' : '') + ' escalada' + (al.length > 1 ? 's' : '')) : ''}</footer>${abiertoH ? renderHistContrato(c.id) : ''}</article>`;
+    return html`<article class="ccard sem-${sem.cls}" data-cid="${c.id}"><header class="ccard-head"><div><h3>${c.nombre}${rolContratoPill(c.id)}</h3><div class="ccard-meta">${nU} ${plural(etiqueta, nU)}${c.inspectorNombre ? ' · IF: ' + c.inspectorNombre : ''}</div></div><span class="sem ${sem.cls}" title="Semáforo del contrato (según hitos y alertas aprobadas)">${sem.label}</span></header><div><div class="av-top"><span class="av-lbl">Avance físico vigente</span><span class="av-num mono">${av.pct === null ? '—' : av.pct + '%'}</span></div><div class="bar"><div class="bar-fill" data-key="${key}" data-pct="${av.pct || 0}" style="width:${barPrev(key)}%"></div></div><div class="av-sub">${av.pct === null ? 'Sin reportes aprobados' : av.reportadas + ' de ' + av.total + ' ' + plural(etiqueta, av.total) + ' con reporte aprobado'}${av.pct === null ? '' : (av.ponderado ? pill('accent', 'ponderado por peso') : html`<span title="Falta el peso de algún subsector (Configuración → Unidades y subsectores)">${pill('muted', 'promedio simple')}</span>`)}${pend ? pill('warn', pend + ' en revisión') : ''}</div></div>${renderRadar(pasos, abiertoR)}${abiertoR ? renderDesglose(c) : ''}<footer class="ccard-foot"><button type="button" class="link-btn js-hist" aria-expanded="${abiertoH ? 'true' : 'false'}">${abiertoH ? 'Ocultar bitácora histórica ▲' : 'Bitácora histórica ▾'}</button>${al.length ? pill('bad', al.length + ' alerta' + (al.length > 1 ? 's' : '') + ' escalada' + (al.length > 1 ? 's' : '')) : ''}</footer>${abiertoH ? renderHistContrato(c.id) : ''}</article>`;
   }
   function filtrarSemaforo(cs){ return State.semFiltro ? cs.filter(function(c){ return semaforo(c.id).cls === State.semFiltro; }) : cs; }
   function kpisContratos(cs, conPendientes){
-    var pcts = cs.map(function(c){ return avanceContrato(c.id).pct; }).filter(function(p){ return p !== null; });
-    var global = pcts.length ? Math.round(pcts.reduce(function(s, p){ return s + p; }, 0) / pcts.length) : null;
+    var ag = avanceGlobal(cs), global = ag.pct;
     var sem = { good:0, warn:0, bad:0 };
     cs.forEach(function(c){ sem[semaforo(c.id).cls]++; });
     var atrasados = 0;
     cs.forEach(function(c){ hitosDe(c.id).forEach(function(h){ if(hitoEstado(h).key === 'atrasado') atrasados++; }); });
     var alertas = cs.reduce(function(n, c){ return n + alertasActivas(c.id).length; }, 0);
     var pend = conPendientes ? State.solicitudes.filter(function(s){ return s.estado === 'PENDIENTE_APROBACION'; }).length : null;
-    return html`<div class="kpi"><div class="kpi-lbl">% avance global</div><div class="kpi-num">${global === null ? '—' : global + '%'}</div><div class="kpi-sub">${cs.length} contrato${cs.length === 1 ? '' : 's'}</div></div><div class="kpi kpi-sem"><div class="kpi-lbl">Semáforo de contratos</div><div class="sem-figs" role="group" aria-label="Filtrar los contratos por color del semáforo">${[['bad', 'rojo'], ['warn', 'ámbar'], ['good', 'verde']].map(function(f){ return html`<button type="button" class="sem-fig ${f[0]}" data-sem="${f[0]}" aria-pressed="${State.semFiltro === f[0] ? 'true' : 'false'}"><span class="sem-n mono">${sem[f[0]]}</span><span class="sem-t">${sem[f[0]] === 1 ? 'contrato' : 'contratos'} en ${f[1]}</span></button>`; })}</div><ul class="sem-ley"><li><i class="dot bad"></i><span><strong>Rojo:</strong> hito atrasado, alerta extrema publicada o desvío de fechas de más de 30 días.</span></li><li><i class="dot warn"></i><span><strong>Ámbar:</strong> desvío de fechas (hasta 30 días) o alerta publicada que no sea extrema.</span></li><li><i class="dot good"></i><span><strong>Verde:</strong> ninguna de las anteriores.</span></li></ul><div class="kpi-sub">${State.semFiltro ? html`<button type="button" class="link-btn js-sem-quitar">Quitar el filtro (se muestran solo los contratos en ${{ bad:'rojo', warn:'ámbar', good:'verde' }[State.semFiltro]})</button>` : 'Haz clic en un color para filtrar las tarjetas de contratos.'}</div></div><div class="kpi"><div class="kpi-lbl">Hitos atrasados</div><div class="kpi-num${atrasados ? ' bad' : ''}">${atrasados}</div><div class="kpi-sub">Según fechas aprobadas</div></div><div class="kpi"><div class="kpi-lbl">${conPendientes ? 'En revisión' : 'Alertas escaladas'}</div><div class="kpi-num${(conPendientes ? pend : alertas) ? ' warn' : ''}">${conPendientes ? pend : alertas}</div><div class="kpi-sub">${conPendientes ? alertas + ' alerta' + (alertas === 1 ? '' : 's') + ' publicada' + (alertas === 1 ? '' : 's') : 'Publicadas por las jefaturas'}</div></div>`;
+    return html`<div class="kpi"><div class="kpi-lbl">% avance global</div><div class="kpi-num">${global === null ? '—' : global + '%'}</div><div class="kpi-sub">${cs.length} contrato${cs.length === 1 ? '' : 's'} · ${ag.ponderado ? pill('accent', 'ponderado por peso') : html`<span title="Falta el peso de algún contrato (Configuración → Peso de cada contrato)">${pill('muted', 'promedio simple')}</span>`}</div></div><div class="kpi kpi-sem"><div class="kpi-lbl">Semáforo de contratos</div><div class="sem-figs" role="group" aria-label="Filtrar los contratos por color del semáforo">${[['bad', 'rojo'], ['warn', 'ámbar'], ['good', 'verde']].map(function(f){ return html`<button type="button" class="sem-fig ${f[0]}" data-sem="${f[0]}" aria-pressed="${State.semFiltro === f[0] ? 'true' : 'false'}"><span class="sem-n mono">${sem[f[0]]}</span><span class="sem-t">${sem[f[0]] === 1 ? 'contrato' : 'contratos'} en ${f[1]}</span></button>`; })}</div><ul class="sem-ley"><li><i class="dot bad"></i><span><strong>Rojo:</strong> hito atrasado, alerta extrema publicada o desvío de fechas de más de 30 días.</span></li><li><i class="dot warn"></i><span><strong>Ámbar:</strong> desvío de fechas (hasta 30 días) o alerta publicada que no sea extrema.</span></li><li><i class="dot good"></i><span><strong>Verde:</strong> ninguna de las anteriores.</span></li></ul><div class="kpi-sub">${State.semFiltro ? html`<button type="button" class="link-btn js-sem-quitar">Quitar el filtro (se muestran solo los contratos en ${{ bad:'rojo', warn:'ámbar', good:'verde' }[State.semFiltro]})</button>` : 'Haz clic en un color para filtrar las tarjetas de contratos.'}</div></div><div class="kpi"><div class="kpi-lbl">Hitos atrasados</div><div class="kpi-num${atrasados ? ' bad' : ''}">${atrasados}</div><div class="kpi-sub">Según fechas aprobadas</div></div><div class="kpi"><div class="kpi-lbl">${conPendientes ? 'En revisión' : 'Alertas escaladas'}</div><div class="kpi-num${(conPendientes ? pend : alertas) ? ' warn' : ''}">${conPendientes ? pend : alertas}</div><div class="kpi-sub">${conPendientes ? alertas + ' alerta' + (alertas === 1 ? '' : 's') + ' publicada' + (alertas === 1 ? '' : 's') : 'Publicadas por las jefaturas'}</div></div>`;
   }
   function renderContratos(){
     var cs = contratosVisibles();
@@ -2358,17 +2417,50 @@
     }));
   }
 
+  /* ---- pesos (admin) ---- */
+  function sumaPesos(textos){
+    var centavos = 0, faltan = 0;
+    textos.forEach(function(t){ var n = parsePeso(t); if(n === null) faltan++; else centavos += Math.round(n * 100); });
+    return { centavos:centavos, faltan:faltan };
+  }
+  function textoSumaPesos(textos){
+    var r = sumaPesos(textos);
+    if(!textos.length) return 'No hay elementos activos.';
+    if(r.faltan) return 'Suma: ' + fmtPeso(r.centavos / 100) + ' · falta indicar ' + r.faltan + ' peso' + (r.faltan === 1 ? '' : 's');
+    if(r.centavos === 10000) return 'Suma: 100% ✓';
+    return 'Suma: ' + fmtPeso(r.centavos / 100) + (r.centavos < 10000 ? ' · faltan ' + fmtPeso((10000 - r.centavos) / 100) : ' · sobran ' + fmtPeso((r.centavos - 10000) / 100));
+  }
+  function claseSuma(textos){ var r = sumaPesos(textos); return (textos.length && !r.faltan && r.centavos === 10000) ? 'ok' : 'mal'; }
+  function refrescarSuma(cont, textos){ var el = cont.querySelector('.js-peso-suma'); if(el){ el.textContent = textoSumaPesos(textos); el.className = 'peso-suma js-peso-suma ' + claseSuma(textos); } }
+  function partesIguales(n){
+    var base = Math.floor(10000 / n) / 100, out = [];
+    for(var i = 0; i < n - 1; i++) out.push(base);
+    out.push(Math.round((10000 - Math.round(base * 100) * (n - 1))) / 100);
+    return out;
+  }
+  function renderPesosContratos(){
+    var cs = contratos.filter(function(c){ return c.activo; });
+    if(!cs.length){ setHTML($('#cfPesoContratos'), html`<div class="helper" style="margin:0;">No hay contratos activos.</div>`); return; }
+    var valores = cs.map(function(c){ return State.pesoCEdits[c.id] !== undefined ? State.pesoCEdits[c.id] : (c.peso === null ? '' : String(c.peso)); });
+    setHTML($('#cfPesoContratos'), html`<div class="table-wrap"><table class="tbl-compact" style="min-width:420px;"><thead><tr><th>Contrato</th><th style="text-align:right;">Peso (%)</th></tr></thead><tbody>${cs.map(function(c, i){
+      return html`<tr data-cid="${c.id}"><td>${c.nombre}${c.codDeaf ? html` <span class="pill muted mono">${c.codDeaf}</span>` : ''}</td><td style="text-align:right;"><input type="text" inputmode="decimal" class="f-pesoc peso-in mono" value="${valores[i]}" placeholder="0" aria-label="${'Peso de ' + c.nombre}"></td></tr>`;
+    })}</tbody></table></div><div class="peso-res"><span class="peso-suma js-peso-suma" aria-live="polite">${textoSumaPesos(valores)}</span><span class="btn-row"><button type="button" class="btn secondary small js-repartir-c">Repartir en partes iguales</button><button type="button" class="btn small js-guardar-pesos-c">Guardar pesos</button></span></div>`);
+    refrescarSuma($('#cfPesoContratos'), valores);
+  }
+
   /* ---- configuración (admin) ---- */
   function renderConfig(){
     setHTML($('#cfContratos'), contratos.map(function(c){
       return html`<tr data-id="${c.id}"><td><input type="text" class="f-coddeaf mono" maxlength="${LIM.codDeaf}" value="${c.codDeaf}" placeholder="COD_DEAF" aria-label="COD_DEAF" style="min-width:110px;"></td><td><input type="text" class="f-nombre" maxlength="${LIM.nombre}" value="${c.nombre}" aria-label="Nombre del contrato" style="min-width:200px;"></td><td><input type="text" class="f-unidadlabel" maxlength="${LIM.label}" value="${c.unidadLabel}" placeholder="Sector / Hospital / Aeropuerto / Cárcel" aria-label="Nombre de sus unidades"></td><td><input type="text" class="f-inspector" maxlength="${LIM.inspector}" value="${c.inspectorNombre}" aria-label="IF titular"></td><td><input type="text" class="f-suplente" maxlength="${LIM.inspector}" value="${c.inspectorSuplente}" aria-label="IF suplente"></td><td><input type="email" class="f-correo-c" maxlength="${LIM.correo}" value="${c.correoAprobador}" placeholder="aprobador@dominio.cl" aria-label="Correo del aprobador" style="min-width:190px;"></td><td style="text-align:center;"><input type="checkbox" class="f-activo" aria-label="Activo"${c.activo ? ' checked' : ''}></td><td><button type="button" class="btn secondary small js-save">Guardar</button></td></tr>`;
     }));
+    renderPesosContratos();
     setHTML($('#cfUnidades'), contratos.length ? contratos.map(function(c){
       var us = State.unidades.filter(function(u){ return u.contratoId === c.id; }), act = us.filter(function(u){ return u.activo; }).length;
       var abierto = State.uAbierto[c.id] !== undefined ? State.uAbierto[c.id] : contratos.length <= 3;
-      return html`<details class="uc" data-cid="${c.id}"${abierto ? ' open' : ''}><summary>${c.nombre}${c.codDeaf ? html` <span class="pill muted mono">${c.codDeaf}</span>` : ''}<span class="pill accent">${act} activo${act === 1 ? '' : 's'}</span>${us.length > act ? pill('muted', (us.length - act) + ' desactivado' + (us.length - act === 1 ? '' : 's')) : ''}${c.activo ? '' : pill('muted', 'contrato inactivo')}</summary><div class="uc-body">${us.length ? html`<div class="table-wrap"><table class="tbl-compact" style="min-width:420px;"><thead><tr><th>${c.unidadLabel || 'Subsector'}</th><th>Activo</th><th></th></tr></thead><tbody>${us.map(function(u){
-        return html`<tr data-id="${u.id}" data-cid="${c.id}"><td><input type="text" class="f-nombre" maxlength="${LIM.nombre}" value="${u.nombre}" aria-label="Nombre del subsector"></td><td style="text-align:center;"><input type="checkbox" class="f-activo" aria-label="Activo"${u.activo ? ' checked' : ''}></td><td><button type="button" class="btn secondary small js-save">Guardar</button></td></tr>`;
-      })}</tbody></table></div>` : html`<p class="helper" style="margin:0;">Este contrato aún no tiene subsectores.</p>`}<div class="uc-add"><input type="text" class="f-nueva" maxlength="${LIM.nombre}" placeholder="Nombre del nuevo subsector" aria-label="${'Nuevo subsector de ' + c.nombre}"><button type="button" class="btn small js-add-unidad">+ Agregar subsector</button></div></div></details>`;
+      return html`<details class="uc" data-cid="${c.id}"${abierto ? ' open' : ''}><summary>${c.nombre}${c.codDeaf ? html` <span class="pill muted mono">${c.codDeaf}</span>` : ''}<span class="pill accent">${act} activo${act === 1 ? '' : 's'}</span>${us.length > act ? pill('muted', (us.length - act) + ' desactivado' + (us.length - act === 1 ? '' : 's')) : ''}${c.activo ? '' : pill('muted', 'contrato inactivo')}</summary><div class="uc-body">${us.length ? html`<div class="table-wrap"><table class="tbl-compact" style="min-width:420px;"><thead><tr><th>${c.unidadLabel || 'Subsector'}</th><th style="text-align:right;">Peso (%)</th><th>Activo</th><th></th></tr></thead><tbody>${us.map(function(u){
+        var pv = State.pesoEdits[u.id] !== undefined ? State.pesoEdits[u.id] : (u.peso === null ? '' : String(u.peso));
+        return html`<tr data-id="${u.id}" data-cid="${c.id}"><td><input type="text" class="f-nombre" maxlength="${LIM.nombre}" value="${u.nombre}" aria-label="Nombre del subsector"></td><td style="text-align:right;"><input type="text" inputmode="decimal" class="f-peso peso-in mono" value="${pv}" placeholder="0" aria-label="${'Peso de ' + u.nombre}"${u.activo ? '' : ' disabled title="Un subsector desactivado no cuenta en los pesos"'}></td><td style="text-align:center;"><input type="checkbox" class="f-activo" aria-label="Activo"${u.activo ? ' checked' : ''}></td><td><button type="button" class="btn secondary small js-save">Guardar</button></td></tr>`;
+      })}</tbody></table></div><div class="peso-res"><span class="peso-suma js-peso-suma ${claseSuma(us.filter(function(u){ return u.activo; }).map(function(u){ return State.pesoEdits[u.id] !== undefined ? State.pesoEdits[u.id] : (u.peso === null ? '' : String(u.peso)); }))}" aria-live="polite">${textoSumaPesos(us.filter(function(u){ return u.activo; }).map(function(u){ return State.pesoEdits[u.id] !== undefined ? State.pesoEdits[u.id] : (u.peso === null ? '' : String(u.peso)); }))}</span><span class="btn-row"><button type="button" class="btn secondary small js-repartir">Repartir en partes iguales</button><button type="button" class="btn small js-guardar-pesos">Guardar pesos</button></span></div>` : html`<p class="helper" style="margin:0;">Este contrato aún no tiene subsectores.</p>`}<div class="uc-add"><input type="text" class="f-nueva" maxlength="${LIM.nombre}" placeholder="Nombre del nuevo subsector" aria-label="${'Nuevo subsector de ' + c.nombre}"><button type="button" class="btn small js-add-unidad">+ Agregar subsector</button></div></div></details>`;
     }) : html`<div class="empty-state">Primero crea o carga los contratos.</div>`);
     setHTML($('#cfHitos'), State.hitos.filter(function(h){ return !h.isDeleted; }).map(function(h){
       var conf = State.confirmar.has('hito-' + h.id);
@@ -2482,7 +2574,7 @@
     Session.role = null; Session.contratos = null; Session.rolesContrato = null; Session.contratoActivo = null; Session.tab = null; Session.preview = false;
     State = estadoVacio();
     $('#modalBack').hidden = true; document.body.style.overflow = ''; $('#notifPanel').hidden = true; $('#btnNotif').hidden = true;
-    ['#ctKpis', '#ctCards', '#gbKpis', '#gbCards', '#gbAlertas', '#gbFiltros', '#gbAprobaciones', '#solFiltros', '#solLista', '#bjKpis', '#bjLista', '#bjAlertas', '#hsBody', '#permTabla', '#permResultados', '#cfContratos', '#cfUnidades', '#cfHitos', '#permAprobadores', '#impContratosBox', '#impUnidadesBox', '#kanbanBoard', '#resueltasBody', '#cgAvUnidad', '#cgAvInfo', '#avTimeline', '#avContrato', '#htContrato', '#ganttWrap', '#modalBody', '#notifPanel', '#pbUnidad', '#whoami', '#tabsNav'].forEach(function(sel){ setHTML($(sel), ''); });
+    ['#ctKpis', '#ctCards', '#gbKpis', '#gbCards', '#gbAlertas', '#gbFiltros', '#gbAprobaciones', '#solFiltros', '#solLista', '#bjKpis', '#bjLista', '#bjAlertas', '#hsBody', '#permTabla', '#permResultados', '#cfContratos', '#cfUnidades', '#cfHitos', '#permAprobadores', '#cfPesoContratos', '#impContratosBox', '#impUnidadesBox', '#kanbanBoard', '#resueltasBody', '#cgAvUnidad', '#cgAvInfo', '#avTimeline', '#avContrato', '#htContrato', '#ganttWrap', '#modalBody', '#notifPanel', '#pbUnidad', '#whoami', '#tabsNav'].forEach(function(sel){ setHTML($(sel), ''); });
     $('#formAvance').reset(); $('#formProblema').reset(); resetStakeholders();
     $('#appShell').hidden = true; $('#gate').hidden = false;
   }
@@ -2713,18 +2805,53 @@
   });
 
   // configuración
+  function textosContratos(){ return $all('#cfPesoContratos tr[data-cid] .f-pesoc').map(function(i){ return i.value; }); }
+  $('#cfPesoContratos').addEventListener('input', function(e){
+    if(!e.target.classList.contains('f-pesoc')) return;
+    var tr = cerca(e.target, 'tr'), id = tr && cleanId(tr.getAttribute('data-cid')); if(!id) return;
+    State.pesoCEdits[id] = e.target.value; refrescarSuma($('#cfPesoContratos'), textosContratos());
+  });
+  $('#cfPesoContratos').addEventListener('click', function(e){
+    if(Session.role !== 'admin') return;
+    if(cerca(e.target, '.js-repartir-c')){
+      var trs = $all('#cfPesoContratos tr[data-cid]'); if(!trs.length) return;
+      var pr = partesIguales(trs.length);
+      trs.forEach(function(tr, i){ tr.querySelector('.f-pesoc').value = String(pr[i]); State.pesoCEdits[tr.getAttribute('data-cid')] = String(pr[i]); });
+      refrescarSuma($('#cfPesoContratos'), textosContratos());
+    } else if(cerca(e.target, '.js-guardar-pesos-c')){
+      var mapa = {};
+      $all('#cfPesoContratos tr[data-cid]').forEach(function(tr){ mapa[tr.getAttribute('data-cid')] = tr.querySelector('.f-pesoc').value; });
+      conBoton(e.target, function(){ return Repo.guardarPesosContratos(mapa).then(function(){ Object.keys(mapa).forEach(function(k){ delete State.pesoCEdits[k]; }); showToast('Pesos de contratos guardados: el avance global se calcula ponderado.'); }, function(err){ reportError(err, 'No se pudieron guardar los pesos.'); }); });
+    }
+  });
   $('#cfContratos').addEventListener('click', function(e){
     if(!cerca(e.target, '.js-save') || Session.role !== 'admin') return;
     var tr = cerca(e.target, 'tr'), c = findContrato(cleanId(tr.getAttribute('data-id'))); if(!c) return;
     conBoton(e.target, function(){ return Repo.saveContrato(c.id, { codDeaf: tr.querySelector('.f-coddeaf').value, nombre: tr.querySelector('.f-nombre').value, unidadLabel: tr.querySelector('.f-unidadlabel').value, inspectorNombre: tr.querySelector('.f-inspector').value, inspectorSuplente: tr.querySelector('.f-suplente').value, correoAprobador: tr.querySelector('.f-correo-c').value, activo: tr.querySelector('.f-activo').checked }).then(function(){ showToast('Contrato actualizado.'); }, function(err){ reportError(err, 'No se pudo guardar.'); }); });
   });
   $('#cfUnidades').addEventListener('toggle', function(e){ var d = e.target; if(d && d.classList && d.classList.contains('uc')){ var cid = cleanId(d.getAttribute('data-cid')); if(cid) State.uAbierto[cid] = d.open; } }, true);
+  function textosActivos(det){ return $all('#cfUnidades details[data-cid="' + CSS.escape(det.getAttribute('data-cid')) + '"] tr[data-id]').filter(function(tr){ return tr.querySelector('.f-activo').checked; }).map(function(tr){ return tr.querySelector('.f-peso').value; }); }
+  $('#cfUnidades').addEventListener('input', function(e){
+    if(!e.target.classList.contains('f-peso')) return;
+    var tr = cerca(e.target, 'tr'), det = cerca(e.target, '.uc'), id = tr && cleanId(tr.getAttribute('data-id')); if(!id || !det) return;
+    State.pesoEdits[id] = e.target.value; refrescarSuma(det, textosActivos(det));
+  });
   $('#cfUnidades').addEventListener('click', function(e){
     if(Session.role !== 'admin') return;
     var det = cerca(e.target, '.uc'), cid = det && cleanId(det.getAttribute('data-cid')); if(!cid) return;
     if(cerca(e.target, '.js-save')){
       var tr = cerca(e.target, 'tr'), u = findIn(State.unidades, cleanId(tr.getAttribute('data-id'))); if(!u) return;
       conBoton(e.target, function(){ return Repo.saveUnidad(u.id, { nombre: tr.querySelector('.f-nombre').value, contratoId: u.contratoId, activo: tr.querySelector('.f-activo').checked }).then(function(){ showToast(tr.querySelector('.f-activo').checked ? 'Subsector guardado.' : 'Subsector guardado y desactivado (no se borra).'); }, function(err){ reportError(err, 'No se pudo guardar.'); }); });
+    } else if(cerca(e.target, '.js-repartir')){
+      var filas = $all('#cfUnidades details[data-cid="' + CSS.escape(cid) + '"] tr[data-id]').filter(function(tr){ return tr.querySelector('.f-activo').checked; });
+      if(!filas.length) return;
+      var pr = partesIguales(filas.length);
+      filas.forEach(function(tr, i){ tr.querySelector('.f-peso').value = String(pr[i]); State.pesoEdits[tr.getAttribute('data-id')] = String(pr[i]); });
+      refrescarSuma(det, textosActivos(det));
+    } else if(cerca(e.target, '.js-guardar-pesos')){
+      var mapa = {};
+      $all('#cfUnidades details[data-cid="' + CSS.escape(cid) + '"] tr[data-id]').forEach(function(tr){ mapa[tr.getAttribute('data-id')] = tr.querySelector('.f-peso').value; });
+      conBoton(e.target, function(){ return Repo.guardarPesosUnidades(cid, mapa).then(function(){ Object.keys(mapa).forEach(function(k){ delete State.pesoEdits[k]; }); showToast('Pesos guardados: el avance del contrato se calcula ponderado.'); }, function(err){ reportError(err, 'No se pudieron guardar los pesos.'); }); });
     } else if(cerca(e.target, '.js-add-unidad')){
       var inp = det.querySelector('.f-nueva');
       conBoton(e.target, function(){ return Repo.saveUnidad(null, { nombre: inp.value, contratoId: cid, activo:true }).then(function(){ inp.value = ''; showToast('Subsector agregado.'); }, function(err){ reportError(err, 'No se pudo crear el subsector.'); }); });

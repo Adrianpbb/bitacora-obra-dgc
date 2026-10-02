@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS Contrato (
   CodDeaf         TEXT NULL CHECK (CodDeaf IS NULL OR (length(CodDeaf) BETWEEN 1 AND 40 AND CodDeaf NOT GLOB '*[^A-Za-z0-9._/-]*')),
   InspectorNombre TEXT NOT NULL DEFAULT '' CHECK (length(InspectorNombre) <= 150),                 -- IF titular (referencial)
   InspectorSuplente TEXT NOT NULL DEFAULT '' CHECK (length(InspectorSuplente) <= 150),             -- IF suplente (referencial)
+  Peso            REAL NULL CHECK (Peso IS NULL OR (Peso >= 0 AND Peso <= 100)),                   -- % del contrato en el avance global
   CorreoAprobador TEXT NOT NULL DEFAULT '' CHECK (length(CorreoAprobador) <= 254),     -- a esta dirección se abre el aviso (mailto:)
   Activo          INTEGER NOT NULL DEFAULT 1 CHECK (Activo IN (0, 1)),
   CreadoEn        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
@@ -62,6 +63,7 @@ CREATE TABLE IF NOT EXISTS Unidad (
   Id         TEXT PRIMARY KEY CHECK (length(Id) BETWEEN 1 AND 64),
   ContratoId TEXT NOT NULL REFERENCES Contrato(Id),
   Nombre     TEXT NOT NULL CHECK (length(Nombre) BETWEEN 1 AND 150),
+  Peso       REAL NULL CHECK (Peso IS NULL OR (Peso >= 0 AND Peso <= 100)),                         -- % de la unidad dentro de su contrato
   Activo     INTEGER NOT NULL DEFAULT 1 CHECK (Activo IN (0, 1))
 );
 

@@ -393,5 +393,75 @@ class TestCargasMasivas(Base):
         self.repo.guardar_unidad(self.admin, {'contratoId': self.c1, 'nombre': 'Aeródromo Norte', 'activo': False}, self.u1)
 
 
+class TestPesos(Base):
+    """Pesos del avance (v10.8, 2026-10-02): contrato -> unidades, en porcentaje que suma 100."""
+
+    def setUp(self):
+        super().setUp()
+        self.u1b = self.repo.guardar_unidad(self.admin, {'contratoId': self.c1, 'nombre': 'Aeródromo Segundo'})
+        self.repo.guardar_permiso(self.admin, 'u_val', 'VALIDADOR', [self.c1])
+        for uid, valor in ((self.u1, 62), (self.u1b, 40), (self.u2, 20)):
+            self.conn.execute("INSERT INTO AvanceOficial (UnidadId, ContratoId, Valor, FechaReporte) "
+                              "SELECT ?, ContratoId, ?, '2026-09-01' FROM Unidad WHERE Id = ?", (uid, valor, uid))
+        self.conn.commit()
+
+    def test_sin_pesos_es_promedio_simple(self):
+        a = self.repo.avance_contrato(self.admin, self.c1)
+        self.assertEqual((a['pct'], a['ponderado'], a['reportadas'], a['total']), (51, False, 2, 2))
+
+    def test_con_pesos_se_pondera(self):
+        self.repo.guardar_pesos_unidades(self.admin, self.c1, {self.u1: 70, self.u1b: '30'})
+        a = self.repo.avance_contrato(self.admin, self.c1)
+        self.assertEqual((a['pct'], a['ponderado']), (55, True))              # 0,7*62 + 0,3*40 = 55,4
+
+    def test_sin_dato_no_cuenta_como_cero_y_se_renormaliza(self):
+        self.repo.guardar_pesos_unidades(self.admin, self.c1, {self.u1: 70, self.u1b: 30})
+        self.conn.execute('DELETE FROM AvanceOficial WHERE UnidadId = ?', (self.u1b,))
+        a = self.repo.avance_contrato(self.admin, self.c1)
+        self.assertEqual((a['pct'], a['reportadas'], a['total']), (62, 1, 2))
+
+    def test_falta_un_peso_vuelve_al_promedio_simple(self):
+        self.repo.guardar_pesos_unidades(self.admin, self.c1, {self.u1: 70, self.u1b: 30})
+        nueva = self.repo.guardar_unidad(self.admin, {'contratoId': self.c1, 'nombre': 'Nueva sin peso'})
+        self.assertFalse(self.repo.avance_contrato(self.admin, self.c1)['ponderado'])
+        self.repo.guardar_unidad(self.admin, {'contratoId': self.c1, 'nombre': 'Nueva sin peso', 'activo': False}, nueva)
+        self.assertTrue(self.repo.avance_contrato(self.admin, self.c1)['ponderado'])      # desactivada: no cuenta
+
+    def test_los_pesos_deben_sumar_100_y_estar_todos(self):
+        for malo in ({self.u1: 60, self.u1b: 30}, {self.u1: 70}, {self.u1: 70, self.u1b: 40}, {self.u1: -10, self.u1b: 110},
+                     {self.u1: 'abc', self.u1b: 30}, {self.u1: 33.333, self.u1b: 66.667}, {self.u1: True, self.u1b: 99}):
+            with self.assertRaises(v.ErrorValidacion):
+                self.repo.guardar_pesos_unidades(self.admin, self.c1, malo)
+        self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM Unidad WHERE Peso IS NOT NULL').fetchone()[0], 0)   # nada se guardó
+        self.repo.guardar_pesos_unidades(self.admin, self.c1, {self.u1: '33,33', self.u1b: '66,67'})
+
+    def test_la_base_impide_pesos_fuera_de_rango(self):
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.conn.execute('UPDATE Unidad SET Peso = 101 WHERE Id = ?', (self.u1,))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.conn.execute('UPDATE Contrato SET Peso = -1 WHERE Id = ?', (self.c1,))
+
+    def test_global_ponderado_por_contrato(self):
+        self.repo.guardar_pesos_unidades(self.admin, self.c1, {self.u1: 70, self.u1b: 30})
+        self.repo.guardar_pesos_unidades(self.admin, self.c2, {self.u2: 100})
+        self.assertEqual(self.repo.avance_global(self.admin), {'pct': 38, 'ponderado': False})      # sin peso de contrato: (55 + 20) / 2
+        self.repo.guardar_pesos_contratos(self.admin, {self.c1: 75, self.c2: 25})
+        self.assertEqual(self.repo.avance_global(self.admin), {'pct': 46, 'ponderado': True})      # 0,75*55 + 0,25*20
+        with self.assertRaises(v.ErrorValidacion):
+            self.repo.guardar_pesos_contratos(self.admin, {self.c1: 75, self.c2: 20})
+
+    def test_solo_admin_configura_pesos(self):
+        for ses in (self.val, self.inf, self.gab):
+            with self.assertRaises(r.AccesoDenegado):
+                self.repo.guardar_pesos_unidades(ses, self.c1, {self.u1: 50, self.u1b: 50})
+            with self.assertRaises(r.AccesoDenegado):
+                self.repo.guardar_pesos_contratos(ses, {self.c1: 50, self.c2: 50})
+
+    def test_gabinete_y_validador_leen_el_avance_ponderado(self):
+        self.repo.guardar_pesos_unidades(self.admin, self.c1, {self.u1: 70, self.u1b: 30})
+        self.assertEqual(self.repo.avance_contrato(self.gab, self.c1)['pct'], 55)
+        self.assertEqual(self.repo.avance_contrato(self.val, self.c1)['pct'], 55)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

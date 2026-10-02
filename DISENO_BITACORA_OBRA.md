@@ -544,3 +544,27 @@ de la persona), `Problematica.ResolucionTexto / ResolucionPorId` con CHECK (no s
 7. **Importación atómica** en el artifact no es posible; solo en el backend. ¿Basta con el aviso actual?
 8. **Datos antiguos sin motivo de resolución** al migrar al backend (ver 11.4).
 
+### 11.7 Ampliación v10.8 — Pesos del avance (2026-10-02)
+
+Pedido del dueño del proyecto: una interfaz de configuración para fijar el peso de cada contrato según sus sectores y subsectores.
+Decisiones tomadas con él: **jerarquía contrato → sectores/subsectores** (las unidades que ya existen; sin nivel de partidas por ahora) y
+**pesos en porcentaje que suma 100**.
+
+- **Dónde:** Configuración → "Peso de cada contrato en el avance global" (suma 100% entre los contratos activos) y, en cada contrato de
+  "Unidades y subsectores", la columna **Peso (%)** (suma 100% entre sus subsectores activos). La suma se muestra en vivo
+  ("Suma: 90% · faltan 10%"); hay "Repartir en partes iguales" y "Guardar pesos". No se guarda si no suma exactamente 100%,
+  si falta algún peso o si no es un número entre 0 y 100 con hasta 2 decimales (acepta coma). Un subsector desactivado conserva su peso pero no cuenta.
+- **Cálculo (frontend `promedioAvance`, backend `promedio_ponderado`, misma regla):**
+  - avance de un contrato = promedio de sus subsectores activos **ponderado por peso**;
+  - avance global = promedio de los contratos **ponderado por el peso del contrato**;
+  - si a algún elemento del conjunto le falta el peso, se usa **promedio simple** y la tarjeta lo dice ("promedio simple" / "ponderado por peso");
+  - un subsector sin reporte aprobado **no cuenta como 0**: se re-normalizan los pesos entre los que sí tienen dato (igual que antes con el promedio simple).
+- **Modelo:** `contratos.peso`, `unidades.peso` (número 0–100 o ausente). Backend: `Contrato.Peso`, `Unidad.Peso` (CHECK 0–100),
+  `guardar_pesos_unidades`, `guardar_pesos_contratos` (todo o nada), `avance_contrato`, `avance_global`.
+- **El demo** trae pesos de ejemplo (por eso, por ejemplo, la Red Aeroportuaria de ejemplo pasa de 55% a 60%).
+- **Verificación:** frontend 181/181, backend 49/49.
+- **Límites / decisiones abiertas:** (a) no hay nivel de *partidas*: si se necesita, el modelo pasa a árbol (contrato → sector → subsector → partida) y el
+  avance se carga en el nivel más bajo; (b) los pesos no se cargan por Excel (solo desde la pantalla); (c) un subsector nuevo sin peso hace que el
+  contrato vuelva al promedio simple hasta que se vuelvan a cuadrar los pesos; (d) "sin reporte = no cuenta" puede subestimar o sobrestimar el
+  avance si hay unidades pesadas sin primer reporte (la alternativa es contarlas como 0%).
+
