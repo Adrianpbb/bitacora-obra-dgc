@@ -450,7 +450,7 @@ def escenario_if_dos_contratos(p):
     for k in [k for k in seed if 'SECRETO' in json.dumps(seed[k])]:
         pass
     seed['contratos/c3'] = {'nombre': 'Hospital Norte', 'unidadLabel': 'Hospital', 'inspectorNombre': 'IF titular'}
-    seed['unidades/u3'] = {'contratoId': 'c3', 'nombre': 'Torre Hospital', 'activo': True}
+    seed['unidades/u3'] = {'contratoId': 'c3', 'nombre': 'Torre Hospital', 'activo': True, 'peso': 100}
     seed['hitos/h4'] = {'contratoId': 'c3', 'unidadId': 'u3', 'nombre': 'Hito Hospital 1', 'tipo': 'Ingeniería', 'fechaContractual': d(30)}
     seed['hitos/h5'] = {'contratoId': 'c3', 'unidadId': 'u3', 'nombre': 'Hito Hospital 2', 'tipo': 'PSP', 'fechaContractual': d(300)}
     seed['permisos/u_if1'] = {'rol': 'if', 'contratos': ['c1', 'c3'], 'rolesContrato': {'c1': 'titular', 'c3': 'suplente'}, 'activo': True}
@@ -472,6 +472,10 @@ def escenario_if_dos_contratos(p):
         page.select_option('#htContrato', 'c1')
         page.wait_for_timeout(250)
         check('Volver al otro contrato muestra sus 3 hitos', page.locator('.js-g-hito').count() == 3)
+        check('El Gantt muestra el peso de cada sector (o "sin peso")', 'sin peso' in page.inner_text('#ganttWrap .g-group'), page.inner_text('#ganttWrap .g-group'))
+        page.select_option('#htContrato', 'c3')
+        page.wait_for_timeout(250)
+        check('Sector con peso: "peso 100%"', 'peso 100%' in page.inner_text('#ganttWrap .g-group'), page.inner_text('#ganttWrap .g-group'))
         check('Sin errores de JavaScript', not errores, errores)
     finally:
         browser.close()
@@ -864,7 +868,7 @@ def escenario_pesos(p):
         c1 = '.ccard[data-cid=c1]'
         check('Avance del contrato ponderado por el peso de sus subsectores (70%×62 + 30%×40 = 55%, no el simple 51%)',
               page.inner_text(c1 + ' .av-num') == '55%' and 'ponderado por peso' in page.inner_text(c1), page.inner_text(c1 + ' .av-num'))
-        kpi = page.inner_text('#ctKpis .kpi >> nth=0')
+        kpi = page.inner_text('#ctKpis .kpi-avance')
         check('Avance global ponderado por el peso de los contratos (75%×55 + 25%×20 = 46%, no el simple 38%)', '46%' in kpi and 'ponderado por peso' in kpi, kpi)
         tab(page, 'config')
         d1 = '#cfUnidades details.uc[data-cid=c1]'

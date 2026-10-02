@@ -386,8 +386,14 @@
   a.btn{ display:inline-block; text-decoration:none; }
 
   /* ---------- semáforo de contratos ---------- */
-  .kpi-sem{ grid-column:span 2; }
-  @media (max-width:640px){ .kpi-sem{ grid-column:1 / -1; } }
+  .kpi-strip > .kpi-board{ grid-column:1 / -1; }
+  .kpi-board{ display:grid; grid-template-columns:minmax(0,1fr) minmax(250px,330px); gap:12px; align-items:stretch; }
+  @media (max-width:900px){ .kpi-board{ grid-template-columns:1fr; } }
+  .kpi-stack{ display:flex; flex-direction:column; gap:8px; }
+  .kpi.mini{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 14px; flex:1; }
+  .kpi.mini .kpi-lbl{ margin-bottom:3px; }
+  .kpi.mini .kpi-sub{ margin-top:0; }
+  .kpi.mini .kpi-num{ font-size:26px; }
   .sem-figs{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; }
   .sem-fig{ font:inherit; text-align:left; border:2px solid transparent; border-radius:10px; padding:10px 12px; cursor:pointer; display:flex; flex-direction:column; gap:3px; color:inherit; }
   .sem-fig.bad{ background:var(--bad-soft); color:var(--bad); } .sem-fig.warn{ background:var(--warn-soft); color:var(--warn); } .sem-fig.good{ background:var(--good-soft); color:var(--good); }
@@ -575,7 +581,8 @@
             <span><i class="g-sw b-desvio"></i> Con desvío</span>
             <span><i class="g-sw b-atrasado"></i> Atrasado</span>
           </div>
-          <div id="ganttWrap"></div>
+          <p class="helper" style="margin:10px 0 0;">El <strong>peso</strong> de cada sector (su % dentro del avance del contrato) lo define el administrador en Configuración → Unidades y subsectores.</p>
+          <div id="ganttWrap" style="margin-top:12px;"></div>
         </div>
       </section>
 
@@ -2302,7 +2309,10 @@
     cs.forEach(function(c){ hitosDe(c.id).forEach(function(h){ if(hitoEstado(h).key === 'atrasado') atrasados++; }); });
     var alertas = cs.reduce(function(n, c){ return n + alertasActivas(c.id).length; }, 0);
     var pend = conPendientes ? State.solicitudes.filter(function(s){ return s.estado === 'PENDIENTE_APROBACION'; }).length : null;
-    return html`<div class="kpi"><div class="kpi-lbl">% avance global</div><div class="kpi-num">${global === null ? '—' : global + '%'}</div><div class="kpi-sub">${cs.length} contrato${cs.length === 1 ? '' : 's'} · ${ag.ponderado ? pill('accent', 'ponderado por peso') : html`<span title="Falta el peso de algún contrato (Configuración → Peso de cada contrato)">${pill('muted', 'promedio simple')}</span>`}</div></div><div class="kpi kpi-sem"><div class="kpi-lbl">Semáforo de contratos</div><div class="sem-figs" role="group" aria-label="Filtrar los contratos por color del semáforo">${[['bad', 'rojo'], ['warn', 'ámbar'], ['good', 'verde']].map(function(f){ return html`<button type="button" class="sem-fig ${f[0]}" data-sem="${f[0]}" aria-pressed="${State.semFiltro === f[0] ? 'true' : 'false'}"><span class="sem-n mono">${sem[f[0]]}</span><span class="sem-t">${sem[f[0]] === 1 ? 'contrato' : 'contratos'} en ${f[1]}</span></button>`; })}</div><ul class="sem-ley"><li><i class="dot bad"></i><span><strong>Rojo:</strong> hito atrasado, alerta extrema publicada o desvío de fechas de más de 30 días.</span></li><li><i class="dot warn"></i><span><strong>Ámbar:</strong> desvío de fechas (hasta 30 días) o alerta publicada que no sea extrema.</span></li><li><i class="dot good"></i><span><strong>Verde:</strong> ninguna de las anteriores.</span></li></ul><div class="kpi-sub">${State.semFiltro ? html`<button type="button" class="link-btn js-sem-quitar">Quitar el filtro (se muestran solo los contratos en ${{ bad:'rojo', warn:'ámbar', good:'verde' }[State.semFiltro]})</button>` : 'Haz clic en un color para filtrar las tarjetas de contratos.'}</div></div><div class="kpi"><div class="kpi-lbl">Hitos atrasados</div><div class="kpi-num${atrasados ? ' bad' : ''}">${atrasados}</div><div class="kpi-sub">Según fechas aprobadas</div></div><div class="kpi"><div class="kpi-lbl">${conPendientes ? 'En revisión' : 'Alertas escaladas'}</div><div class="kpi-num${(conPendientes ? pend : alertas) ? ' warn' : ''}">${conPendientes ? pend : alertas}</div><div class="kpi-sub">${conPendientes ? alertas + ' alerta' + (alertas === 1 ? '' : 's') + ' publicada' + (alertas === 1 ? '' : 's') : 'Publicadas por las jefaturas'}</div></div>`;
+    var tituloAvance = global === null ? '—' : global + '%';
+    var subAvance = html`${cs.length} contrato${cs.length === 1 ? '' : 's'} · ${ag.ponderado ? pill('accent', 'ponderado por peso') : html`<span title="Falta el peso de algún contrato (Configuración → Peso de cada contrato)">${pill('muted', 'promedio simple')}</span>`}`;
+    var segundo = conPendientes ? pend : alertas;
+    return html`<div class="kpi-board"><div class="kpi kpi-sem"><div class="kpi-lbl">Semáforo de contratos</div><div class="sem-figs" role="group" aria-label="Filtrar los contratos por color del semáforo">${[['bad', 'rojo'], ['warn', 'ámbar'], ['good', 'verde']].map(function(f){ return html`<button type="button" class="sem-fig ${f[0]}" data-sem="${f[0]}" aria-pressed="${State.semFiltro === f[0] ? 'true' : 'false'}"><span class="sem-n mono">${sem[f[0]]}</span><span class="sem-t">${sem[f[0]] === 1 ? 'contrato' : 'contratos'} en ${f[1]}</span></button>`; })}</div><ul class="sem-ley"><li><i class="dot bad"></i><span><strong>Rojo:</strong> hito atrasado, alerta extrema publicada o desvío de fechas de más de 30 días.</span></li><li><i class="dot warn"></i><span><strong>Ámbar:</strong> desvío de fechas (hasta 30 días) o alerta publicada que no sea extrema.</span></li><li><i class="dot good"></i><span><strong>Verde:</strong> ninguna de las anteriores.</span></li></ul><div class="kpi-sub">${State.semFiltro ? html`<button type="button" class="link-btn js-sem-quitar">Quitar el filtro (se muestran solo los contratos en ${{ bad:'rojo', warn:'ámbar', good:'verde' }[State.semFiltro]})</button>` : 'Haz clic en un color para filtrar las tarjetas de contratos.'}</div></div><div class="kpi-stack"><div class="kpi mini kpi-avance"><div><div class="kpi-lbl">% avance global</div><div class="kpi-sub">${subAvance}</div></div><div class="kpi-num">${tituloAvance}</div></div><div class="kpi mini"><div><div class="kpi-lbl">Hitos atrasados</div><div class="kpi-sub">Según fechas aprobadas</div></div><div class="kpi-num${atrasados ? ' bad' : ''}">${atrasados}</div></div><div class="kpi mini"><div><div class="kpi-lbl">${conPendientes ? 'En revisión' : 'Alertas escaladas'}</div><div class="kpi-sub">${conPendientes ? alertas + ' alerta' + (alertas === 1 ? '' : 's') + ' publicada' + (alertas === 1 ? '' : 's') : 'Publicadas por las jefaturas'}</div></div><div class="kpi-num${segundo ? ' warn' : ''}">${segundo}</div></div></div></div>`;
   }
   function renderContratos(){
     var cs = contratosVisibles();
@@ -2436,7 +2446,8 @@
     var minW = Math.max(760, meses.length * 64), hx = css(pct(hoy)), lblW = window.matchMedia && window.matchMedia('(max-width:720px)').matches ? 150 : 260;
     setHTML(wrap, html`<div class="g-scroll"><div class="g-inner" style="min-width:${lblW + minW}px"><div class="g-overlay" aria-hidden="true">${meses.map(function(m){ return html`<i class="g-linea" style="left:${css(m.left)}%"></i>`; })}<i class="g-hoy" style="left:${hx}%"></i><span class="g-hoy-lbl" style="left:${hx}%">Hoy</span></div><div class="g-head"><span class="g-lbl">Sector / hito</span><div class="g-meses">${meses.map(function(m){ return html`<span class="g-mes-lbl" style="left:${css(m.left)}%">${m.lbl}</span>`; })}</div></div>${orden.map(function(k){
       var lista = grupos[k].slice().sort(function(x, y){ var ix = RADAR.indexOf(x.tipo), iy = RADAR.indexOf(y.tipo); ix = ix < 0 ? 99 : ix; iy = iy < 0 ? 99 : iy; return ix - iy || ((fechaObjetivo(x) || '') < (fechaObjetivo(y) || '') ? -1 : 1); });
-      return html`<div class="g-group"><span class="g-lbl">${k === '_contrato' ? 'Todo el contrato' : unidadNombre(k)}</span></div>${lista.map(filaGantt)}`;
+      var uk = k === '_contrato' ? null : findIn(State.unidades, k);
+      return html`<div class="g-group"><span class="g-lbl">${k === '_contrato' ? 'Todo el contrato' : unidadNombre(k)}${uk ? (uk.peso !== null ? html`<span title="Peso de este sector en el avance del contrato">${pill('accent', 'peso ' + fmtPeso(uk.peso))}</span>` : html`<span title="El administrador aún no define su peso (Configuración → Unidades y subsectores)">${pill('muted', 'sin peso')}</span>`) : ''}</span></div>${lista.map(filaGantt)}`;
     })}</div></div>`);
   }
 
@@ -2757,7 +2768,7 @@
     }) : html`<div class="empty-state">Primero crea o carga los contratos.</div>`);
     setHTML($('#cfHitos'), State.hitos.filter(function(h){ return !h.isDeleted; }).map(function(h){
       var conf = State.confirmar.has('hito-' + h.id);
-      return html`<tr data-id="${h.id}"><td><input type="text" class="f-nombre" maxlength="${LIM.nombre}" value="${h.nombre}" placeholder="Nombre del hito" aria-label="Nombre del hito"></td><td><select class="f-unidad" aria-label="Unidad">${State.unidades.map(function(x){ return html`<option value="${x.id}"${x.id === h.unidadId ? ' selected' : ''}>${contratoNombre(x.contratoId)} · ${x.nombre}</option>`; })}</select></td><td><select class="f-tipo" aria-label="Etapa">${HITO_TIPOS.map(function(t){ return html`<option value="${t}"${t === h.tipo ? ' selected' : ''}>${t}</option>`; })}</select></td><td><input type="date" class="f-fcontractual" value="${h.fechaContractual || ''}" aria-label="Fecha contractual"></td><td>${conf ? html`<span class="confirm-inline">¿Eliminar? <button type="button" class="btn danger small js-hito-del-si">Sí</button><button type="button" class="btn secondary small js-hito-del-no">No</button></span>` : html`<button type="button" class="btn secondary small js-save">Guardar</button> <button type="button" class="btn ghost-danger small js-hito-del">Eliminar</button>`}</td></tr>`;
+      return html`<tr data-id="${h.id}"><td><input type="text" class="f-nombre" maxlength="${LIM.nombre}" value="${h.nombre}" placeholder="Nombre del hito" aria-label="Nombre del hito"></td><td><select class="f-unidad" aria-label="Unidad">${State.unidades.map(function(x){ return html`<option value="${x.id}"${x.id === h.unidadId ? ' selected' : ''}>${contratoNombre(x.contratoId)} · ${x.nombre}${x.peso !== null ? ' (peso ' + fmtPeso(x.peso) + ')' : ''}</option>`; })}</select></td><td><select class="f-tipo" aria-label="Etapa">${HITO_TIPOS.map(function(t){ return html`<option value="${t}"${t === h.tipo ? ' selected' : ''}>${t}</option>`; })}</select></td><td><input type="date" class="f-fcontractual" value="${h.fechaContractual || ''}" aria-label="Fecha contractual"></td><td>${conf ? html`<span class="confirm-inline">¿Eliminar? <button type="button" class="btn danger small js-hito-del-si">Sí</button><button type="button" class="btn secondary small js-hito-del-no">No</button></span>` : html`<button type="button" class="btn secondary small js-save">Guardar</button> <button type="button" class="btn ghost-danger small js-hito-del">Eliminar</button>`}</td></tr>`;
     }));
   }
 

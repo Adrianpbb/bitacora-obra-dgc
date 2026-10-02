@@ -10,6 +10,11 @@ Formato de cada entrada: versión · fecha · commit — qué cambió · pruebas
 
 ---
 
+## v10.11 · 2026-10-02 — Dashboard más compacto y pesos visibles en Hitos
+- **Tarjetas del dashboard**: "Avance global", "Hitos atrasados" y "Alertas escaladas / En revisión" dejan de estirarse a la altura de la tarjeta del semáforo. Ahora el semáforo (con su leyenda) va a la izquierda y las tres cifras son tarjetas compactas apiladas a la derecha; en teléfono quedan una bajo otra.
+- **Hitos (Gantt)**: cada sector muestra su **peso** ("peso 70%") o "sin peso"; el peso se define en Configuración → Unidades y subsectores. En la línea base de hitos (Configuración) el selector de sector también muestra el peso.
+- Pruebas: frontend 218/218 · backend 54/54.
+
 ## v10.10 · 2026-10-02 — Ficha de problemáticas: actores relevantes, checklist y edición
 - "Stakeholders" pasa a llamarse **"Actores relevantes"** (formulario, tarjeta y ficha; el dato guardado sigue siendo el mismo).
 - **Checklist de acciones para subsanar**: en vez de un cuadro "una tarea por línea", cada acción aparece en su línea numerada, con botón **"+ Agregar acción"** (o Enter) y botón × para quitarla. Lo escrito sin agregar se agrega al guardar.
