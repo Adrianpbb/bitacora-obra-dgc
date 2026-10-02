@@ -208,6 +208,22 @@ class Repositorio:
         cur.execute('INSERT INTO Auditoria (ContratoId, ActorId, Rol, Accion, Entidad, EntidadId, Detalle) VALUES (?, ?, ?, ?, ?, ?, ?)',
                     (contrato_id, sesion.usuario_id, sesion.rol, accion, entidad, entidad_id, detalle[:500]))
 
+    @staticmethod
+    def _cambios(antes, despues, etiquetas):
+        """Texto 'Campo: antes -> después; ...' con solo lo que cambió (para el registro de auditoría)."""
+        partes = []
+        for campo, etiqueta in etiquetas:
+            a = '' if antes is None or antes.get(campo) is None else str(antes[campo])
+            d = '' if despues.get(campo) is None else str(despues[campo])
+            if a != d:
+                partes.append(f'{etiqueta}: {a[:60]} -> {d[:60]}' if antes is not None else f'{etiqueta}: {d[:60]}')
+        return '; '.join(partes)
+
+    def _fila_actual(self, cur, tabla, id_, columnas):
+        cur.execute(f'SELECT {", ".join(columnas)} FROM {tabla} WHERE Id = ?', (id_,))     # tabla y columnas son constantes internas
+        fila = cur.fetchone()
+        return dict(zip(columnas, fila)) if fila else None
+
     def _historial(self, cur, sesion, solicitud_id, contrato_id, estado, comentario=''):
         cur.execute('INSERT INTO SolicitudHistorial (SolicitudId, ContratoId, Estado, ActorId, Comentario) VALUES (?, ?, ?, ?, ?)',
                     (solicitud_id, contrato_id, estado, sesion.usuario_id, comentario))
@@ -275,6 +291,8 @@ class Repositorio:
             raise v.ErrorValidacion('Asigna al menos un contrato a este perfil.')
         cur = self._cursor(sesion)
         ahora = self._ts(_ahora())
+        cur.execute('SELECT Rol, Activo FROM Permiso WHERE UsuarioId = ?', (usuario_id,))
+        previo = cur.fetchone()
         cur.execute('UPDATE Permiso SET Rol = ?, Activo = ?, ActualizadoPor = ?, ActualizadoEn = ? WHERE UsuarioId = ?',
                     (rol, 1 if activo else 0, sesion.usuario_id, ahora, usuario_id))
         if cur.rowcount == 0:
@@ -289,7 +307,8 @@ class Repositorio:
                 cur.execute('INSERT INTO UsuarioContrato (UsuarioId, ContratoId, RolContrato) VALUES (?, ?, ?)', (usuario_id, cid, rc))
         if email is not None:
             cur.execute('UPDATE Usuario SET Email = ? WHERE Id = ?', (email, usuario_id))
-        self._auditar(cur, sesion, 'permiso', 'Permiso', usuario_id, None, rol + ': ' + ','.join(c + '=' + por_contrato[c] for c in ids))
+        self._auditar(cur, sesion, 'editar' if previo else 'crear', 'Permiso', usuario_id, None,
+                      (f'Perfil: {previo[0]} -> {rol}; ' if previo and previo[0] != rol else f'Perfil: {rol}; ') + ('Activo: ' + ('si' if activo else 'no') + '; ') + 'Contratos: ' + ','.join(c + '=' + por_contrato[c] for c in ids))
         self.conn.commit()
 
     # ------------------------------------------------------------ estructura (ADMIN)
@@ -309,6 +328,8 @@ class Repositorio:
             otro = cur.fetchone()
             if otro is not None and otro[0] != contrato_id:
                 raise v.ErrorValidacion('COD_DEAF: ya existe otro contrato con ese código')
+        cols_c = ['Nombre', 'CodDeaf', 'UnidadLabel', 'InspectorNombre', 'InspectorSuplente', 'CorreoAprobador', 'Activo']
+        antes = self._fila_actual(cur, 'Contrato', contrato_id, cols_c) if contrato_id is not None else None
         if contrato_id is None:
             contrato_id = _nuevo_id()
             cur.execute('INSERT INTO Contrato (Nombre, CodDeaf, UnidadLabel, InspectorNombre, InspectorSuplente, CorreoAprobador, Activo, Id) '
@@ -316,7 +337,8 @@ class Repositorio:
         else:
             cur.execute('UPDATE Contrato SET Nombre = ?, CodDeaf = ?, UnidadLabel = ?, InspectorNombre = ?, InspectorSuplente = ?, '
                         'CorreoAprobador = ?, Activo = ? WHERE Id = ?', fila + (v.ident(contrato_id, 'contrato'),))
-        self._auditar(cur, sesion, 'guardar', 'Contrato', contrato_id, contrato_id)
+        self._auditar(cur, sesion, 'editar' if antes else 'crear', 'Contrato', contrato_id, contrato_id,
+                      self._cambios(antes, dict(zip(cols_c, fila)), list(zip(cols_c, ['Nombre', 'COD_DEAF', 'Unidades como', 'IF titular', 'IF suplente', 'Correo aprobador', 'Activo']))))
         self.conn.commit()
         return contrato_id
 
@@ -392,13 +414,15 @@ class Repositorio:
         # Comparación sin distinguir mayúsculas ni acentos de mayúscula (casefold): UPPER/NOCASE de SQLite solo pliega ASCII.
         if any(fila[0] != unidad_id and fila[1].casefold() == nombre.casefold() for fila in cur.fetchall()):
             raise v.ErrorValidacion('subsector: ese contrato ya tiene uno con ese nombre')
+        antes_u = self._fila_actual(cur, 'Unidad', unidad_id, ['ContratoId', 'Nombre', 'Activo']) if unidad_id is not None else None
         if unidad_id is None:
             unidad_id = _nuevo_id()
             cur.execute('INSERT INTO Unidad (Id, ContratoId, Nombre, Activo) VALUES (?, ?, ?, ?)', (unidad_id, contrato_id, nombre, activo))
         else:
             cur.execute('UPDATE Unidad SET ContratoId = ?, Nombre = ?, Activo = ? WHERE Id = ?',
                         (contrato_id, nombre, activo, v.ident(unidad_id, 'unidad')))
-        self._auditar(cur, sesion, 'guardar', 'Unidad', unidad_id, contrato_id)
+        self._auditar(cur, sesion, 'editar' if antes_u else 'crear', 'Unidad', unidad_id, contrato_id,
+                      self._cambios(antes_u, {'ContratoId': contrato_id, 'Nombre': nombre, 'Activo': activo}, [('ContratoId', 'Contrato'), ('Nombre', 'Nombre'), ('Activo', 'Activo')]))
         self.conn.commit()
         return unidad_id
 
@@ -463,13 +487,16 @@ class Repositorio:
         fila = (contrato_id, unidad_id, v.texto(datos.get('nombre'), v.LIM['nombre']),
                 v.opcion(datos.get('tipo'), v.HITO_TIPOS, 'tipo'),
                 v.fecha(datos.get('fechaContractual'), requerido=True, campo='fecha contractual'))
+        cols_h = ['ContratoId', 'UnidadId', 'Nombre', 'Tipo', 'FechaContractual']
+        antes_h = self._fila_actual(cur, 'Hito', hito_id, cols_h) if hito_id is not None else None
         if hito_id is None:
             hito_id = _nuevo_id()
             cur.execute('INSERT INTO Hito (ContratoId, UnidadId, Nombre, Tipo, FechaContractual, Id) VALUES (?, ?, ?, ?, ?, ?)', fila + (hito_id,))
         else:
             cur.execute('UPDATE Hito SET ContratoId = ?, UnidadId = ?, Nombre = ?, Tipo = ?, FechaContractual = ? WHERE Id = ?',
                         fila + (v.ident(hito_id, 'hito'),))
-        self._auditar(cur, sesion, 'guardar', 'Hito', hito_id, contrato_id)
+        self._auditar(cur, sesion, 'editar' if antes_h else 'crear', 'Hito', hito_id, contrato_id,
+                      self._cambios(antes_h, dict(zip(cols_h, fila)), list(zip(cols_h, ['Contrato', 'Sector', 'Nombre', 'Etapa', 'F. contractual']))))
         self.conn.commit()
         return hito_id
 
@@ -551,6 +578,29 @@ class Repositorio:
             cur.execute(f'UPDATE {tabla} SET Peso = ? WHERE Id = ?', (n, k))      # el nombre de tabla es una constante interna
         self._auditar(cur, sesion, 'pesos', tabla, contrato_id, contrato_id, f'{len(limpios)} pesos')
         self.conn.commit()
+
+    def listar_auditoria(self, sesion, limite=200, entidad=None, actor_id=None, desde=None, hasta=None):
+        """Registro de modificaciones (solo ADMIN): quién hizo qué y cuándo, del más reciente al más antiguo.
+        La tabla Auditoria es de solo anexar (triggers) y la fecha la pone la base. desde/hasta: AAAA-MM-DD."""
+        self._exigir(sesion, 'ADMIN')
+        limite = v.entero(limite, 1, 2000, 'límite')
+        cond, params = [], []
+        if entidad:
+            cond.append('Entidad = ?'); params.append(v.texto(entidad, 40))
+        if actor_id:
+            cond.append('ActorId = ?'); params.append(v.ident(actor_id, 'actor'))
+        if desde:
+            cond.append('OcurridoEn >= ?'); params.append(v.fecha(desde, campo='desde'))
+        if hasta:
+            cond.append('OcurridoEn < ?'); params.append((date.fromisoformat(v.fecha(hasta, campo='hasta')) + timedelta(days=1)).isoformat())
+        donde = (' WHERE ' + ' AND '.join(cond)) if cond else ''
+        if self.dialecto == 'sqlite':
+            sql = f'SELECT Id, OcurridoEn, ContratoId, ActorId, Rol, Accion, Entidad, EntidadId, Detalle FROM Auditoria{donde} ORDER BY Id DESC LIMIT ?'
+        else:
+            sql = f'SELECT TOP (?) Id, OcurridoEn, ContratoId, ActorId, Rol, Accion, Entidad, EntidadId, Detalle FROM Auditoria{donde} ORDER BY Id DESC'
+        cur = self._cursor(sesion)
+        cur.execute(sql, ((limite,) + tuple(params)) if self.dialecto == 'sqlserver' else (tuple(params) + (limite,)))
+        return self._filas(cur)
 
     def listar_unidades(self, sesion):
         return self._leer(sesion, 'unidades', oficial=True)

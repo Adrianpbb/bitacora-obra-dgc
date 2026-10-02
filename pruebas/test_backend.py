@@ -463,5 +463,100 @@ class TestPesos(Base):
         self.assertEqual(self.repo.avance_contrato(self.val, self.c1)['pct'], 55)
 
 
+class TestRegistroDeCambios(Base):
+    """Registro de modificaciones auditable (v10.9, 2026-10-02): toda operación que cambia datos deja su anotación."""
+
+    def ultima(self):
+        return self.conn.execute('SELECT ActorId, Rol, Accion, Entidad, EntidadId, ContratoId, Detalle, OcurridoEn FROM Auditoria ORDER BY Id DESC LIMIT 1').fetchone()
+
+    def total(self):
+        return self.conn.execute('SELECT COUNT(*) FROM Auditoria').fetchone()[0]
+
+    def test_toda_operacion_que_modifica_datos_deja_anotacion_con_su_autor(self):
+        repo, admin, inf, val = self.repo, self.admin, self.inf, self.val
+        pid = {}
+
+        def repartir(ids):
+            base = int(10000 / len(ids)) / 100
+            pesos = {i: base for i in ids}
+            pesos[ids[-1]] = round(100 - base * (len(ids) - 1), 2)
+            return pesos
+
+        pasos = [
+            ('Contrato', admin, lambda: repo.guardar_contrato(admin, {'nombre': 'Nuevo', 'codDeaf': 'N-1'})),
+            ('Unidad', admin, lambda: repo.guardar_unidad(admin, {'contratoId': self.c1, 'nombre': 'Otra unidad'})),
+            ('Hito', admin, lambda: repo.guardar_hito_base(admin, {'unidadId': self.u1, 'tipo': 'PSD', 'fechaContractual': d(90)})),
+            ('Hito', admin, lambda: repo.eliminar_hito(admin, self.h1)),
+            ('Usuario', admin, lambda: repo.guardar_usuario(admin, 'u_x', 'Persona X', 'x@example.org')),
+            ('Permiso', admin, lambda: repo.guardar_permiso(admin, 'u_x', 'IF', [self.c1], roles_contrato={self.c1: 'suplente'}, email='x@example.org')),
+            ('Contrato', admin, lambda: repo.importar_contratos(admin, [{'codDeaf': 'N-2', 'nombre': 'Dos', 'unidadLabel': 'Sector', 'inspectorNombre': 'IF', 'correoAprobador': 'a@example.org'}])),
+            ('Unidad', admin, lambda: repo.importar_unidades(admin, [{'codDeaf': 'N-2', 'nombre': 'Sub', 'activo': True}])),
+            ('Unidad', admin, lambda: repo.guardar_pesos_unidades(admin, self.c1, repartir([u['Id'] for u in repo.listar_unidades(admin) if u['ContratoId'] == self.c1 and u['Activo']]))),
+            ('Contrato', admin, lambda: repo.guardar_pesos_contratos(admin, repartir([c['Id'] for c in repo.listar_contratos(admin) if c['Activo']]))),
+            ('Solicitud', inf, lambda: pid.update(s=repo.proponer(inf, {'tipo': 'avance', 'unidadId': self.u1, 'valor': 70, 'fechaReporte': d(0), 'nota': 'n'}, enviar=False))),
+            ('Solicitud', inf, lambda: repo.enviar(inf, pid['s'])),
+            ('Solicitud', inf, lambda: repo.cancelar(inf, pid['s'])),
+            ('Solicitud', inf, lambda: pid.update(s=self.proponer_avance(60))),
+            ('Solicitud', val, lambda: repo.aprobar(val, pid['s'])),
+            ('Solicitud', inf, lambda: pid.update(s=self.proponer_avance(65))),
+            ('Solicitud', val, lambda: repo.rechazar(val, pid['s'], 'Falta respaldo')),
+            ('Problematica', inf, lambda: pid.update(p=repo.crear_problematica(inf, {'unidadId': self.u1, 'titulo': 'T', 'descripcion': 'D', 'nivelRiesgo': 'Extremo', 'checklist': ['a']}))),
+            ('Problematica', inf, lambda: repo.mover_problematica(inf, pid['p'], 'escalado')),
+            ('ProblematicaTarea', inf, lambda: repo.alternar_tarea(inf, self.conn.execute('SELECT Id FROM ProblematicaTarea').fetchone()[0], True)),
+            ('Problematica', inf, lambda: repo.agregar_nota(inf, pid['p'], 'una nota')),
+            ('AlertaGabinete', val, lambda: repo.publicar_alerta(val, pid['p'])),
+            ('AlertaGabinete', val, lambda: repo.retirar_alerta(val, pid['p'])),
+            ('Problematica', inf, lambda: repo.eliminar_problematica(inf, pid['p'])),
+        ]
+        for entidad, ses, accion in pasos:
+            antes = self.total()
+            accion()
+            self.assertGreater(self.total(), antes, f'sin anotación en el paso de {entidad}')
+            ult = self.ultima()
+            self.assertEqual((ult[0], ult[1]), (ses.usuario_id, ses.rol), f'autor incorrecto en {entidad}')
+            self.assertTrue(ult[7].startswith(str(HOY.year)), 'la fecha la pone la base')
+
+    def test_el_registro_guarda_el_antes_y_el_despues(self):
+        self.repo.guardar_contrato(self.admin, {'nombre': 'Red Aeroportuaria Austral', 'codDeaf': 'D-1'}, self.c1)
+        self.repo.guardar_contrato(self.admin, {'nombre': 'Red Austral II', 'codDeaf': 'D-1'}, self.c1)
+        ult = self.ultima()
+        self.assertEqual((ult[2], ult[3]), ('editar', 'Contrato'))
+        self.assertIn('Nombre: Red Aeroportuaria Austral -> Red Austral II', ult[6])
+        self.assertNotIn('COD_DEAF', ult[6])                                       # lo que no cambió no se anota
+        self.repo.guardar_permiso(self.admin, 'u_if', 'VALIDADOR', [self.c1])
+        self.assertIn('Perfil: IF -> VALIDADOR', self.ultima()[6])
+
+    def test_solo_admin_lee_el_registro_y_se_puede_filtrar(self):
+        self.proponer_avance(70)
+        for ses in (self.inf, self.val, self.gab):
+            with self.assertRaises(r.AccesoDenegado):
+                self.repo.listar_auditoria(ses)
+        todo = self.repo.listar_auditoria(self.admin)
+        self.assertTrue(todo and todo[0]['Id'] > todo[-1]['Id'])                   # más reciente primero
+        sol = self.repo.listar_auditoria(self.admin, entidad='Solicitud')
+        self.assertTrue(sol and all(f['Entidad'] == 'Solicitud' for f in sol))
+        self.assertTrue(all(f['ActorId'] == 'u_if' for f in self.repo.listar_auditoria(self.admin, entidad='Solicitud', actor_id='u_if')))
+        self.assertEqual(self.repo.listar_auditoria(self.admin, desde='2099-01-01'), [])
+        self.assertTrue(self.repo.listar_auditoria(self.admin, desde=d(-1), hasta=d(0)))
+        self.assertLessEqual(len(self.repo.listar_auditoria(self.admin, limite=2)), 2)
+        with self.assertRaises(v.ErrorValidacion):
+            self.repo.listar_auditoria(self.admin, entidad="x' OR '1'='1" * 50, limite=0)
+
+    def test_el_registro_es_de_solo_anexar(self):
+        self.proponer_avance(70)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.conn.execute("UPDATE Auditoria SET Detalle = 'manipulado'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.conn.execute('DELETE FROM Auditoria')
+
+    def test_las_operaciones_rechazadas_no_dejan_anotacion_falsa(self):
+        antes = self.total()
+        with self.assertRaises(v.ErrorValidacion):
+            self.repo.guardar_contrato(self.admin, {'nombre': 'X', 'correoAprobador': 'malo'})
+        with self.assertRaises(r.AccesoDenegado):
+            self.repo.guardar_contrato(self.inf, {'nombre': 'X'})
+        self.assertEqual(self.total(), antes)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

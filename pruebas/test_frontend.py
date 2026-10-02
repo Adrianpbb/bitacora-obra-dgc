@@ -174,9 +174,18 @@ def escrituras(page):
     return page.evaluate('window.__T.writes')
 
 
+def es_log(w):
+    return '/cambios/' in w['path']
+
+
+def datos(page, n):
+    """Escrituras de datos desde la posición n (sin las anotaciones del Registro de cambios)."""
+    return [w for w in escrituras(page)[n:] if not es_log(w)]
+
+
 def esperar(page, prefijo, n):
     page.wait_for_function('([p, n]) => window.__T.writes.slice(n).some(w => w.path.startsWith(p))', arg=[prefijo, n], timeout=15000)
-    return escrituras(page)[n:]
+    return datos(page, n)
 
 
 def toast(page):
@@ -251,6 +260,9 @@ def escenario_if(p):
         esperado = sha(canon(['solicitud', s['tipo'], s['contratoId'], s['unidadId'], s['valorPropuesto'], s['fechaReporte'], s['nota'], s['autorId'], s['creadoTs']]))
         check('Recibo antes de la solicitud y hash compatible con Python', nuevas.index(rec) < nuevas.index(sol) and rec['data']['hash'] == esperado)
         page.wait_for_selector('#modalBack', state='visible')
+        page.wait_for_function('() => window.__T.writes.some(w => w.path.includes("/cambios/"))', timeout=8000)
+        lg = [w['data'] for w in escrituras(page) if es_log(w)]
+        check('El envío de la solicitud quedó en el Registro de cambios (acción, autor, contrato)', lg and lg[0]['accion'] == 'enviar' and lg[0]['entidad'] == 'solicitud' and lg[0]['actorId'] == 'u_if1' and lg[0]['contratoId'] == 'c1' and '70%' in lg[0]['detalle'], lg)
         href = page.get_attribute('#modalBody .js-mailto', 'href')
         cuerpo = urllib.parse.unquote(href)
         check('Al enviar aparece "Avisar por correo al aprobador" con mailto: al aprobador del contrato', href.startswith('mailto:jefe.depto@example.org?subject=') and 'Avisar por correo' in page.inner_text('#modalBody'), href[:80])
@@ -678,7 +690,7 @@ def escenario_cargas_admin(p):
         n = len(escrituras(page))
         page.click('#impContratosBox .js-imp-ok')
         page.wait_for_function('([n]) => window.__T.writes.length >= n + 3', arg=[n], timeout=10000)
-        nuevas = escrituras(page)[n:]
+        nuevas = datos(page, n)
         upd = [w for w in nuevas if w['op'] == 'update']
         crea = [w for w in nuevas if w['op'] == 'set' and w['path'].startswith('contratos/')]
         check('Se actualiza el contrato existente por COD_DEAF sin tocar su estado "activo"', len(upd) == 1 and upd[0]['path'] == 'contratos/c1' and upd[0]['data']['nombre'] == 'Red Aeroportuaria Austral II' and 'activo' not in upd[0]['data'], upd)
@@ -766,7 +778,7 @@ def escenario_cargas_admin(p):
         n = len(escrituras(page))
         page.click('#impUnidadesBox .js-imp-ok')
         page.wait_for_function('([n]) => window.__T.writes.length >= n + 4', arg=[n], timeout=10000)
-        nuevas = escrituras(page)[n:]
+        nuevas = datos(page, n)
         check('Se crean los nuevos y solo se cambia "activo" en el existente (sin borrar nada)',
               sorted(w['data']['nombre'] for w in nuevas if w['op'] == 'set') == ['Aeródromo Nuevo', 'Estación Cumbre']
               and sorted(json.dumps(w['data']) for w in nuevas if w['op'] == 'update') == ['{"activo": false}', '{"activo": true}'] and not any(w['op'] == 'delete' for w in nuevas), nuevas)
@@ -811,7 +823,7 @@ def escenario_pesos(p):
         check('Acepta coma decimal', 'Suma: 100% ✓' in page.inner_text(d1 + ' .js-peso-suma'))
         page.click(d1 + ' .js-guardar-pesos')
         page.wait_for_function('([n]) => window.__T.writes.length >= n + 2', arg=[n], timeout=8000)
-        nuevas = escrituras(page)[n:]
+        nuevas = datos(page, n)
         check('Se guarda solo el campo peso de cada subsector', sorted((w['path'], json.dumps(w['data'])) for w in nuevas) == [('unidades/u1', '{"peso": 60.5}'), ('unidades/u1b', '{"peso": 39.5}')], nuevas)
         tab(page, 'contratos')
         check('El avance se recalcula con los nuevos pesos (60,5%×62 + 39,5%×40 = 53%)', page.inner_text(c1 + ' .av-num') == '53%', page.inner_text(c1 + ' .av-num'))
@@ -833,13 +845,86 @@ def escenario_pesos(p):
         page.click(pc + ' .js-repartir-c')
         page.click(pc + ' .js-guardar-pesos-c')
         page.wait_for_function('([n]) => window.__T.writes.length >= n + 2', arg=[n], timeout=8000)
-        nuevas = escrituras(page)[n:]
+        nuevas = datos(page, n)
         check('Pesos de contratos guardados (50/50) sin tocar otros campos', sorted((w['path'], json.dumps(w['data'])) for w in nuevas) == [('contratos/c1', '{"peso": 50}'), ('contratos/c2', '{"peso": 50}')], nuevas)
         n = len(escrituras(page))
         page.fill('#cfContratos tr[data-id=c1] .f-nombre', 'Red Aeroportuaria Austral')
         page.click('#cfContratos tr[data-id=c1] .js-save')
         nuevas = esperar(page, 'contratos/c1', n)
         check('Guardar el formulario del contrato conserva su peso', nuevas[-1]['data'].get('peso') == 50, nuevas[-1])
+        check('Sin errores de JavaScript', not errores, errores)
+    finally:
+        browser.close()
+
+
+def escenario_registro(p):
+    print('\nD4. Registro de cambios auditable (quién, cuándo, qué, antes → después)')
+    browser, page, errores = abrir(p, {'uid': 'u_admin', 'name': 'Admin Central', 'level': 'admin', 'seed': base()})
+    try:
+        ingresar(page)
+        check('El administrador tiene la pestaña "Registro de cambios"', page.locator('#tabsNav [data-tab=registro]').count() == 1)
+        tab(page, 'config')
+        n0 = len(escrituras(page))
+        page.fill('#cfContratos tr[data-id=c1] .f-nombre', '=1+1 Red Aeroportuaria')
+        page.click('#cfContratos tr[data-id=c1] .js-save')
+        esperar(page, 'contratos/c1', n0)
+        c1 = '#cfUnidades details.uc[data-cid=c1]'
+        page.fill(c1 + ' .f-nueva', 'Helipuerto Sur')
+        page.click(c1 + ' .js-add-unidad')
+        esperar(page, 'unidades/', n0)
+        page.click('#cfPesoContratos .js-repartir-c')
+        page.click('#cfPesoContratos .js-guardar-pesos-c')
+        page.wait_for_function('([n]) => window.__T.writes.filter(w => w.path.includes("/cambios/")).length >= 3', arg=[n0], timeout=8000)
+        tab(page, 'permisos')
+        page.click('#permBuscar'); page.fill('#permBuscar', 'Ana')
+        page.wait_for_selector('#permResultados .js-elegir[data-uid=u_if2]'); page.click('#permResultados .js-elegir[data-uid=u_if2]')
+        page.wait_for_selector('#permTabla tr[data-uid=u_if2]')
+        page.click('#permTabla tr[data-uid=u_if2] .perm-chip[data-cid=c1]')
+        page.click('#permTabla tr[data-uid=u_if2] .js-guardar-perm')
+        page.wait_for_function('() => window.__T.writes.filter(w => w.path.includes("/cambios/")).length >= 4', timeout=8000)
+
+        logs = [w for w in escrituras(page) if es_log(w)]
+        check('Cada modificación dejó una anotación en audit/<cuenta>/cambios (4)', len(logs) == 4 and all(w['path'].startswith('audit/u_admin/cambios/') for w in logs), [w['path'] for w in logs])
+        acciones = sorted((w['data']['entidad'], w['data']['accion']) for w in logs)
+        check('Con su acción y entidad', acciones == [('contrato', 'editar'), ('permiso', 'crear'), ('peso', 'guardar_pesos'), ('unidad', 'crear')], acciones)
+        contrato = next(w['data'] for w in logs if w['data']['entidad'] == 'contrato')
+        check('Guarda el antes → después de cada campo modificado', contrato['cambios'] == [{'c': 'Nombre', 'a': 'Red Aeroportuaria Austral', 'd': '=1+1 Red Aeroportuaria'}], contrato['cambios'])
+        check('Cada anotación trae autor (id), hora, perfil y huella SHA-256', all(w['data']['actorId'] == 'u_admin' and w['data']['ts'] > 0 and w['data']['rol'] == 'admin' and len(w['data']['hash']) == 64 for w in logs))
+        check('Solo se guardan ids de usuario, nunca nombres, en el registro', 'Admin Central' not in json.dumps(logs) and 'Ana Pérez' not in json.dumps(logs))
+        pesos = next(w['data'] for w in logs if w['data']['entidad'] == 'peso')
+        check('Pesos: registra qué contratos cambiaron de peso', [c['d'] for c in pesos['cambios']] == ['50%', '50%'], pesos['cambios'])
+
+        tab(page, 'registro')
+        page.wait_for_function("document.querySelectorAll('#rgBody tr').length >= 4 && !document.querySelector('#rgBody').innerText.includes('verificando')", timeout=10000)
+        filas = page.locator('#rgBody tr')
+        txt = page.inner_text('#rgBody')
+        check('El administrador ve las 4 anotaciones, con quién, qué y antes → después', filas.count() == 4 and 'Admin Central' in txt and 'Red Aeroportuaria Austral' in txt and '=1+1 Red Aeroportuaria' in txt, txt[:300])
+        check('Todas con integridad verificada', page.locator('#rgBody .vbadge.ok').count() == 4, page.inner_text('#rgBody')[:200])
+        check('Ordenadas de la más reciente a la más antigua', 'permiso' in filas.nth(0).inner_text().lower() or 'Permisos de' in filas.nth(0).inner_text(), filas.nth(0).inner_text()[:120])
+        check('El permiso muestra el nombre de la persona resuelto al dibujar', 'Permisos de Ana Pérez' in txt, txt[:300])
+        page.select_option('#rgEntidad', 'contrato')
+        check('Filtro por entidad', page.locator('#rgBody tr').count() == 1)
+        page.select_option('#rgEntidad', '')
+        page.fill('#rgQ', 'helipuerto')
+        check('Búsqueda por texto', page.locator('#rgBody tr').count() == 1 and 'Helipuerto Sur' in page.inner_text('#rgBody'))
+        page.fill('#rgQ', '')
+        page.fill('#rgDesde', '2099-01-01')
+        check('Filtro por fecha (desde el futuro: nada)', page.locator('#rgBody tr').count() == 0 and page.is_visible('#rgVacio'))
+        page.fill('#rgDesde', '')
+        with page.expect_download() as dl:
+            page.click('#rgCsv')
+        csv_txt = dl.value.path().read_bytes().decode('utf-8-sig')
+        check('Exporta CSV con huella y neutraliza fórmulas (=1+1 → \'=1+1)', 'Huella SHA-256' in csv_txt and "'=1+1 Red Aeroportuaria" in csv_txt and csv_txt.count('\r\n') >= 5, csv_txt[:300])
+
+        # --- auditabilidad: alterar una fila o falsear al autor se detecta / no se muestra ---
+        ruta = next(w['path'] for w in logs if w['data']['entidad'] == 'unidad')
+        alterada = next(w['data'] for w in logs if w['data']['entidad'] == 'unidad')
+        alterada = dict(alterada, detalle='Subsector inocente')
+        ajena = dict(alterada, actorId='u_otro')
+        page.evaluate('async ([ruta, a, ajena]) => { const db = await window.claude.use("db"); await db.doc(ruta).set(a); await db.doc("audit/u_admin/cambios/falsa").set(ajena); }', [ruta, alterada, ajena])
+        page.wait_for_function("document.querySelectorAll('#rgBody .vbadge.warn').length === 1", timeout=8000)
+        check('Una fila alterada después de registrada se marca "⚠ alterado"', '⚠ alterado' in page.inner_text('#rgBody') and page.locator('#rgBody tr').count() == 4, page.inner_text('#rgBody')[:200])
+        check('Una anotación a nombre de otra cuenta no se muestra', 'u_otro' not in page.inner_text('#rgBody') and page.locator('#rgBody tr').count() == 4)
         check('Sin errores de JavaScript', not errores, errores)
     finally:
         browser.close()
@@ -953,6 +1038,7 @@ if __name__ == '__main__':
         escenario_admin(p)
         escenario_cargas_admin(p)
         escenario_pesos(p)
+        escenario_registro(p)
         escenario_sin_perfil(p)
         escenario_local(p)
         escenario_entregable(p)

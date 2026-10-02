@@ -401,6 +401,15 @@
   .sem-ley .dot{ flex:none; width:9px; height:9px; border-radius:50%; margin-top:4px; }
   .sem-ley .dot.bad{ background:var(--bad); } .sem-ley .dot.warn{ background:var(--warn); } .sem-ley .dot.good{ background:var(--good); }
 
+  /* ---------- registro de cambios ---------- */
+  .rg-filtros{ display:grid; grid-template-columns:2fr 1.3fr 1.3fr 1fr 1fr; gap:12px; margin-bottom:12px; }
+  .rg-filtros .field{ margin:0; }
+  @media (max-width:900px){ .rg-filtros{ grid-template-columns:1fr 1fr; } }
+  .rg-res{ font-size:12.5px; color:var(--ink-soft); margin:0 0 10px; }
+  .rg-cambios{ list-style:none; margin:4px 0 0; padding:0; display:flex; flex-direction:column; gap:2px; font-size:11.5px; color:var(--ink-soft); }
+  .rg-cambios b{ color:var(--ink); font-weight:600; }
+  .rg-cambios s{ opacity:.75; }
+
   /* ---------- carga masiva y subsectores ---------- */
   .imp-box{ display:flex; flex-direction:column; gap:8px; }
   .imp-box .helper{ margin:0; }
@@ -622,6 +631,21 @@
         <div style="margin-top:10px;"><button class="btn secondary small" type="button" id="btnAddHito">+ Agregar hito</button></div>
       </section>
 
+      <section id="panel-registro" class="panel">
+        <div class="panel-head"><div><h2>Registro de cambios</h2><p>Quién modificó qué, y cuándo. Solo se agrega: nada se edita ni se borra desde la herramienta. Cada fila lleva una huella (hash) que permite detectar si fue alterada.</p></div><button class="btn secondary" type="button" id="rgCsv">Exportar CSV</button></div>
+        <div class="card rg-filtros">
+          <div class="field"><label for="rgQ">Buscar</label><input id="rgQ" type="search" placeholder="Texto del detalle, contrato, entidad…" autocomplete="off"></div>
+          <div class="field"><label for="rgEntidad">Qué se modificó</label><select id="rgEntidad"></select></div>
+          <div class="field"><label for="rgActor">Quién</label><select id="rgActor"></select></div>
+          <div class="field"><label for="rgDesde">Desde</label><input id="rgDesde" type="date"></div>
+          <div class="field"><label for="rgHasta">Hasta</label><input id="rgHasta" type="date"></div>
+        </div>
+        <div class="rg-res" id="rgResumen"></div>
+        <div class="table-wrap"><table class="tbl-compact" style="min-width:980px;"><thead><tr><th>Fecha y hora</th><th>Quién</th><th>Acción</th><th>Qué</th><th>Contrato</th><th>Detalle y cambios</th><th>Integridad</th></tr></thead><tbody id="rgBody"></tbody></table></div>
+        <div class="empty-state" id="rgVacio" hidden>Todavía no hay cambios registrados con esos filtros.</div>
+        <div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn secondary" type="button" id="rgMas" hidden>Ver más</button></div>
+      </section>
+
       <section id="panel-problematicas" class="panel">
         <div class="kanban-toolbar">
           <label class="switch-row"><span class="switch"><input type="checkbox" id="pbToggleCentral"><span class="switch-track"></span></span>Solo casos que requieren nivel central (Directora / Jurídica)</label>
@@ -779,7 +803,7 @@
   var TABS = {
     'if':      [['contratos', 'Mis contratos'], ['avance', 'Cargar avance'], ['hitos', 'Modificar hitos'], ['solicitudes', 'Mis solicitudes'], ['problematicas', 'Problemáticas'], ['resueltas', 'Resueltas']],
     validador: [['contratos', 'Contratos'], ['bandeja', 'Bandeja de aprobaciones'], ['historial', 'Historial'], ['problematicas', 'Problemáticas'], ['resueltas', 'Resueltas']],
-    admin:     [['contratos', 'Contratos'], ['bandeja', 'Bandeja de aprobaciones'], ['historial', 'Historial'], ['permisos', 'Gestión de permisos'], ['config', 'Configuración'], ['problematicas', 'Problemáticas'], ['resueltas', 'Resueltas']],
+    admin:     [['contratos', 'Contratos'], ['bandeja', 'Bandeja de aprobaciones'], ['historial', 'Historial'], ['permisos', 'Gestión de permisos'], ['config', 'Configuración'], ['registro', 'Registro de cambios'], ['problematicas', 'Problemáticas'], ['resueltas', 'Resueltas']],
     gabinete:  [['gabinete', 'Dashboard ejecutivo']]
   };
 
@@ -888,6 +912,15 @@
     var t = cleanStr(r.texto, LIM.texto, true); if(!t) return null;
     return { texto:t, autorId: cleanId(r.autorId), fecha: cleanDate(r.fecha), ts: cleanTs(r.ts) };
   }
+  function normRegistro(d){
+    var id = cleanId(d.id), x = docData(d); if(!id) return null;
+    var cambios = (Array.isArray(x.cambios) ? x.cambios : []).slice(0, 20).map(function(c){
+      return (c && typeof c === 'object') ? { c: cleanStr(c.c, 60), a: cleanStr(c.a, 200), d: cleanStr(c.d, 200) } : null;
+    }).filter(function(c){ return c && c.c; });
+    return { id:id, ts: cleanTs(x.ts), actorId: cleanId(x.actorId), rol: cleanStr(x.rol, 20), accion: cleanStr(x.accion, 40), entidad: cleanStr(x.entidad, 40),
+      entidadId: cleanStr(x.entidadId, 100), contratoId: cleanId(x.contratoId), detalle: cleanStr(x.detalle, 500), cambios:cambios,
+      vistaPrevia: x.vistaPrevia === true, hash: (typeof x.hash === 'string' && HEX64_RE.test(x.hash)) ? x.hash : '' };
+  }
   function normLectura(d){ var x = docData(d); return { leidoTs: cleanTs(x.leidoTs) }; }
   function normProblematica(d){
     var id = cleanId(d.id), x = docData(d), cid = cleanId(x.contratoId);
@@ -931,6 +964,7 @@
   function canonSolicitud(s){ return JSON.stringify(['solicitud', s.tipo, s.contratoId, s.ref, s.valorPropuesto, s.fechaReporte, s.nota, s.autorId, s.creadoTs]); }
   function canonDecision(id, estado, comentario, revisorId, ts){ return JSON.stringify(['decision', id, estado, comentario, revisorId, ts]); }
   function canonProblematica(p){ return JSON.stringify(['problematica', p.contratoId, p.unidadId, p.titulo, p.descripcion, p.impacto, p.fechaCreacion, p.reportadoPor, p.autorId, p.ts]); }
+  function canonRegistro(r){ return JSON.stringify(['cambio', r.ts, r.actorId, r.rol, r.accion, r.entidad, r.entidadId, r.contratoId, r.detalle, r.cambios, r.vistaPrevia]); }
   function canonNota(pid, n){ return JSON.stringify(['nota', pid, n.id, n.texto, n.autor, n.autorId, n.fecha, n.ts]); }
 
   /* =================================================================
@@ -1065,7 +1099,7 @@
   var contratos = [];                        // lista oficial (legible por todos)
   var legado = { problematicas: new Set() };
   var State = estadoVacio();
-  var subs = [], auditSubs = Object.create(null);
+  var subs = [], auditSubs = Object.create(null), regSubs = Object.create(null);
   var hashCache = new Map(), hashPendiente = new Set(), barras = Object.create(null);
 
   function estadoVacio(){
@@ -1075,7 +1109,8 @@
       recibos:Object.create(null), recibosCargados:Object.create(null), cuentas:Object.create(null),
       expRadar:new Set(), expHist:new Set(), expanded:new Set(), confirmar:new Set(), rechazando:new Set(), rechazoTexto:Object.create(null),
       solFiltro:'PENDIENTE_APROBACION', permEdits:Object.create(null), permNuevos:[], permHits:[], pbSoloCentral:false,
-      leidoTs:0, notifAbierto:false, modal:null, correoEdits:Object.create(null), gbFiltro:'todo', gbLimite:10, semFiltro:null, imp:{ contratos:null, unidades:null }, uAbierto:Object.create(null), pesoEdits:Object.create(null), pesoCEdits:Object.create(null)
+      leidoTs:0, notifAbierto:false, modal:null, correoEdits:Object.create(null), gbFiltro:'todo', gbLimite:10, semFiltro:null, imp:{ contratos:null, unidades:null }, uAbierto:Object.create(null), pesoEdits:Object.create(null), pesoCEdits:Object.create(null),
+      registro:Object.create(null), rgLimite:50
     };
   }
   function fail(msg){ var e = new Error(msg); e.code = 'validacion'; return e; }
@@ -1441,6 +1476,7 @@
       var docRef = db.collection('problematicas').doc();
       await escribirRecibo('problematica', docRef.id, 'crear', '', cid, await sha256Hex(canonProblematica(p)));
       await docRef.set(p);
+      return { id: docRef.id, contratoId: cid, titulo: titulo };
     },
     moverProblematica: async function(p, estado, motivo){
       assertScope(p.contratoId);
@@ -1488,6 +1524,122 @@
       await db.doc('problematicas/' + p.id).update({ isDeleted:true, eliminadoTs: Date.now(), eliminadoPor: myUid });
     }
   };
+
+  /* =================================================================
+     5a. REGISTRO DE CAMBIOS — cada modificación de datos queda anotada
+         (quién, cuándo, qué, antes → después) en audit/<cuenta>/cambios,
+         una ruta que solo puede escribir la propia cuenta. Se anota DESPUÉS
+         de que el cambio se guardó; si el registro falla, se avisa.
+         Cada fila lleva un hash SHA-256 de su contenido (detecta alteraciones).
+     ================================================================= */
+  var ENTIDADES = [['solicitud', 'Solicitud'], ['contrato', 'Contrato'], ['unidad', 'Subsector'], ['hito', 'Hito (línea base)'], ['permiso', 'Permiso'], ['peso', 'Pesos'],
+    ['carga', 'Carga masiva'], ['alerta', 'Alerta a Gabinete'], ['problematica', 'Problemática']];
+  function recorte(v, n){ return cleanStr(v === null || v === undefined ? '' : String(v), n || 200); }
+  function diffCampos(antes, despues, campos){
+    var out = [];
+    campos.forEach(function(c){
+      var a = antes ? antes[c[0]] : undefined, d = despues[c[0]];
+      var sa = Array.isArray(a) ? a.join(', ') : (a === undefined || a === null ? '' : String(a)), sd = Array.isArray(d) ? d.join(', ') : (d === undefined || d === null ? '' : String(d));
+      if(sa !== sd) out.push({ c:c[1], a:recorte(sa), d:recorte(sd) });
+    });
+    return out;
+  }
+  function nombresContratos(ids){ return (ids || []).map(function(id){ var c = findContrato(id); return c ? (c.codDeaf || c.nombre) : id; }); }
+  function etiquetaSol(s){
+    var t = findBy(SOL_TIPOS, s.tipo);
+    return (t ? t.label : s.tipo) + ' · ' + contratoNombre(s.contratoId) + ' · ' + refEtiqueta(s.tipo, s.ref) + ': ' + fmtValor(s.tipo, s.valorVigente) + ' → ' + fmtValor(s.tipo, s.valorPropuesto);
+  }
+  async function registrarCambio(r){
+    var e = { ts: Date.now(), actorId: myUid, rol: Session.role || '', accion: recorte(r.accion, 40), entidad: recorte(r.entidad, 40), entidadId: recorte(r.entidadId, 100),
+      contratoId: cleanId(r.contratoId), detalle: recorte(r.detalle, 500), cambios: (r.cambios || []).slice(0, 20), vistaPrevia: Session.preview === true };
+    e.hash = await sha256Hex(canonRegistro(e));
+    var id = e.ts.toString(36) + '-' + idAleatorio();
+    await db.collection('audit/' + myUid + '/cambios').doc(id).set(e);
+  }
+  /* descriptores: antes(args) toma una foto del estado previo; desc(args, resultado, antes) devuelve la anotación */
+  var LOG_REPO = {
+    crearSolicitud: { desc: function(a, res){ return { accion: a[1] ? 'enviar' : 'guardar_borrador', entidad:'solicitud', entidadId:res.id, contratoId:res.contratoId, detalle:etiquetaSol(res) }; } },
+    enviarSolicitud: { desc: function(a){ return { accion:'enviar', entidad:'solicitud', entidadId:a[0].id, contratoId:a[0].contratoId, detalle:etiquetaSol(a[0]) }; } },
+    cancelarSolicitud: { desc: function(a){ return { accion:'cancelar', entidad:'solicitud', entidadId:a[0].id, contratoId:a[0].contratoId, detalle:etiquetaSol(a[0]) }; } },
+    aprobar: { desc: function(a){ return { accion:'aprobar', entidad:'solicitud', entidadId:a[0].id, contratoId:a[0].contratoId, detalle:etiquetaSol(a[0]) }; } },
+    rechazar: { desc: function(a){ return { accion:'rechazar', entidad:'solicitud', entidadId:a[0].id, contratoId:a[0].contratoId, detalle:etiquetaSol(a[0]) + ' · motivo: ' + recorte(a[1], 200) }; } },
+    publicarAlerta: { desc: function(a){ return { accion:'publicar', entidad:'alerta', entidadId:a[0].id, contratoId:a[0].contratoId, detalle:a[0].titulo }; } },
+    retirarAlerta: { desc: function(a){ return { accion:'retirar', entidad:'alerta', entidadId:a[0].problematicaId, contratoId:a[0].contratoId, detalle:a[0].titulo }; } },
+    guardarPermiso: {
+      antes: function(a){ for(var i = 0; i < State.permisos.length; i++) if(State.permisos[i].uid === a[0]) return State.permisos[i]; return null; },
+      desc: function(a, res, antes){
+        var e = a[1], desp = { rol: rolLabel(e.rol), contratos: nombresContratos(e.contratos), activo: e.activo === true ? 'sí' : 'no', correo: e.correo || '' };
+        var ant = antes ? { rol: rolLabel(antes.rol), contratos: nombresContratos(antes.contratos), activo: antes.activo ? 'sí' : 'no', correo: antes.correo || '' } : null;
+        return { accion: antes ? 'editar' : 'crear', entidad:'permiso', entidadId:a[0], contratoId:null, detalle:'Perfil ' + rolLabel(e.rol),
+          cambios: diffCampos(ant, desp, [['rol', 'Perfil'], ['contratos', 'Contratos'], ['activo', 'Activo'], ['correo', 'Correo']]) };
+      } },
+    saveContrato: {
+      antes: function(a){ var c = a[0] ? findContrato(a[0]) : null; return c ? Object.assign({}, c) : null; },
+      desc: function(a, res, antes){
+        var f = a[1], desp = { nombre: cleanStr(f.nombre, LIM.nombre), codDeaf: cleanStr(f.codDeaf, LIM.codDeaf), unidadLabel: cleanStr(f.unidadLabel, LIM.label), inspectorNombre: cleanStr(f.inspectorNombre, LIM.inspector),
+          inspectorSuplente: cleanStr(f.inspectorSuplente, LIM.inspector), correoAprobador: cleanEmail(f.correoAprobador), activo: f.activo !== false ? 'sí' : 'no' };
+        var ant = antes ? Object.assign({}, antes, { activo: antes.activo ? 'sí' : 'no' }) : null;
+        return { accion: a[0] ? 'editar' : 'crear', entidad:'contrato', entidadId: a[0] || (res && res.id) || '', contratoId: a[0] || (res && res.id) || null, detalle:'Contrato ' + desp.nombre,
+          cambios: diffCampos(ant, desp, [['nombre', 'Nombre'], ['codDeaf', 'COD_DEAF'], ['unidadLabel', 'Unidades como'], ['inspectorNombre', 'IF titular'], ['inspectorSuplente', 'IF suplente'], ['correoAprobador', 'Correo aprobador'], ['activo', 'Activo']]) };
+      } },
+    saveUnidad: {
+      antes: function(a){ var u = a[0] ? findIn(State.unidades, a[0]) : null; return u ? Object.assign({}, u) : null; },
+      desc: function(a, res, antes){
+        var f = a[1], desp = { nombre: cleanStr(f.nombre, LIM.nombre), activo: f.activo === true ? 'sí' : 'no' }, ant = antes ? { nombre: antes.nombre, activo: antes.activo ? 'sí' : 'no' } : null;
+        return { accion: a[0] ? (ant && ant.activo === 'sí' && desp.activo === 'no' ? 'desactivar' : 'editar') : 'crear', entidad:'unidad', entidadId: a[0] || (res && res.id) || '', contratoId: cleanId(f.contratoId),
+          detalle:'Subsector ' + desp.nombre + ' · ' + contratoNombre(f.contratoId), cambios: diffCampos(ant, desp, [['nombre', 'Nombre'], ['activo', 'Activo']]) };
+      } },
+    saveHitoBase: {
+      antes: function(a){ var h = a[0] ? findIn(State.hitos, a[0]) : null; return h ? Object.assign({}, h) : null; },
+      desc: function(a, res, antes){
+        var f = a[1], u = findIn(State.unidades, cleanId(f.unidadId));
+        var desp = { nombre: cleanStr(f.nombre, LIM.nombre), tipo: f.tipo, fechaContractual: f.fechaContractual, unidad: u ? u.nombre : '', isDeleted: f.isDeleted === true ? 'sí' : 'no' };
+        var ant = antes ? { nombre: antes.nombre, tipo: antes.tipo, fechaContractual: antes.fechaContractual, unidad: unidadNombre(antes.unidadId), isDeleted: antes.isDeleted ? 'sí' : 'no' } : null;
+        return { accion: f.isDeleted === true ? 'eliminar' : (a[0] ? 'editar' : 'crear'), entidad:'hito', entidadId: a[0] || (res && res.id) || '', contratoId: u ? u.contratoId : null, detalle:'Hito ' + (desp.nombre || desp.tipo),
+          cambios: diffCampos(ant, desp, [['nombre', 'Nombre'], ['tipo', 'Etapa'], ['fechaContractual', 'F. contractual'], ['unidad', 'Sector'], ['isDeleted', 'Eliminado']]) };
+      } },
+    guardarCorreoAprobador: {
+      antes: function(a){ var c = findContrato(a[0]); return c ? { correoAprobador: c.correoAprobador } : null; },
+      desc: function(a, res, antes){ return { accion:'editar', entidad:'contrato', entidadId:a[0], contratoId:a[0], detalle:'Correo del aprobador de ' + contratoNombre(a[0]), cambios: diffCampos(antes, { correoAprobador: cleanEmail(a[1]) }, [['correoAprobador', 'Correo aprobador']]) }; } },
+    guardarPesosUnidades: {
+      antes: function(a){ var m = {}; State.unidades.filter(function(u){ return u.contratoId === a[0] && u.activo; }).forEach(function(u){ m[u.id] = { nombre:u.nombre, peso:u.peso }; }); return m; },
+      desc: function(a, res, antes){
+        var cambios = []; Object.keys(antes).forEach(function(id){ var n = parsePeso(a[1][id]); if(n !== antes[id].peso) cambios.push({ c: antes[id].nombre, a: antes[id].peso === null ? '' : fmtPeso(antes[id].peso), d: fmtPeso(n) }); });
+        return { accion:'guardar_pesos', entidad:'peso', entidadId:a[0], contratoId:a[0], detalle:'Pesos de los subsectores de ' + contratoNombre(a[0]), cambios:cambios };
+      } },
+    guardarPesosContratos: {
+      antes: function(){ var m = {}; contratos.filter(function(c){ return c.activo; }).forEach(function(c){ m[c.id] = { nombre:c.nombre, peso:c.peso }; }); return m; },
+      desc: function(a, res, antes){
+        var cambios = []; Object.keys(antes).forEach(function(id){ var n = parsePeso(a[0][id]); if(n !== antes[id].peso) cambios.push({ c: antes[id].nombre, a: antes[id].peso === null ? '' : fmtPeso(antes[id].peso), d: fmtPeso(n) }); });
+        return { accion:'guardar_pesos', entidad:'peso', entidadId:'global', contratoId:null, detalle:'Pesos de cada contrato en el avance global', cambios:cambios };
+      } },
+    importarContratos: { desc: function(a, res){ return { accion:'importar', entidad:'carga', entidadId:'contratos', contratoId:null, detalle:'Carga de contratos: ' + res.creados + ' nuevos, ' + res.actualizados + ' actualizados, ' + res.iguales + ' sin cambios',
+      cambios: a[0].filter(function(i){ return i.accion !== 'igual'; }).slice(0, 20).map(function(i){ return { c: i.datos.codDeaf, a: '', d: (i.accion === 'crear' ? 'nuevo: ' : 'actualiza: ') + i.datos.nombre }; }) }; } },
+    importarUnidades: { desc: function(a, res){ return { accion:'importar', entidad:'carga', entidadId:'subsectores', contratoId:null, detalle:'Carga de subsectores: ' + res.creados + ' nuevos, ' + res.actualizados + ' actualizados, ' + res.iguales + ' sin cambios',
+      cambios: a[0].filter(function(i){ return i.accion !== 'igual'; }).slice(0, 20).map(function(i){ return { c: i.datos.codDeaf + ' · ' + i.datos.nombre, a: '', d: i.accion === 'crear' ? 'nuevo' : (i.datos.activo ? 'activo' : 'desactivado') }; }) }; } },
+    crearProblematica: { desc: function(a, res){ return { accion:'crear', entidad:'problematica', entidadId:res.id, contratoId:res.contratoId, detalle:'Problemática: ' + res.titulo }; } },
+    moverProblematica: { desc: function(a){
+      var p = a[0], est = findBy(PB_ESTADOS, a[1]), ant = findBy(PB_ESTADOS, p.estado);
+      return { accion: a[1] === 'resuelto' ? 'resolver' : 'mover', entidad:'problematica', entidadId:p.id, contratoId:p.contratoId, detalle: p.titulo + ': ' + (ant ? ant.label : '') + ' → ' + (est ? est.label : '') + (a[1] === 'resuelto' ? ' · motivo: ' + recorte(a[2], 300) : '') };
+    } },
+    toggleTarea: { desc: function(a){ var p = a[0], t = p.checklist[a[1]]; return { accion:'tarea', entidad:'problematica', entidadId:p.id, contratoId:p.contratoId, detalle:p.titulo + ': «' + (t ? t.texto : '') + '» ' + (a[2] ? 'hecha' : 'pendiente') }; } },
+    agregarNota: { desc: function(a){ return { accion:'nota', entidad:'problematica', entidadId:a[0].id, contratoId:a[0].contratoId, detalle:a[0].titulo + ': ' + recorte(a[1], 120) }; } },
+    eliminarProblematica: { desc: function(a){ return { accion:'eliminar', entidad:'problematica', entidadId:a[0].id, contratoId:a[0].contratoId, detalle:'Problemática: ' + a[0].titulo }; } }
+  };
+  function instalarRegistro(){
+    Object.keys(LOG_REPO).forEach(function(nombre){
+      var orig = Repo[nombre], def = LOG_REPO[nombre];
+      if(typeof orig !== 'function') return;
+      Repo[nombre] = async function(){
+        var args = Array.prototype.slice.call(arguments), antes = null;
+        try{ antes = def.antes ? def.antes(args) : null; }catch(e){ console.error(e); }
+        var res = await orig.apply(Repo, args);
+        try{ await registrarCambio(def.desc(args, res, antes)); }
+        catch(e){ console.error(e); showToast('El cambio se guardó, pero no se pudo anotar en el Registro de cambios. Avisa al administrador.'); }
+        return res;
+      };
+    });
+  }
 
   /* =================================================================
      5b. EXCEL Y CSV SIN LIBRERÍAS (corre desde disco y sin internet)
@@ -1859,17 +2011,18 @@
       if(lista === null) return c;
       return lista.length === 1 ? c.where('contratoId', '==', lista[0]) : c.where('contratoId', 'in', lista.slice(0, 30));
     }
-    subs.push(q('solicitudes').orderBy('creadoTs', 'desc').limit(1000).onSnapshot(function(s){ State.solicitudes = mapDocs(s, normSolicitud).filter(function(x){ return enAlcance(x.contratoId); }); syncAuditoria(); resolverCuentas(); scheduleRender(); }, onSubError));
+    subs.push(q('solicitudes').orderBy('creadoTs', 'desc').limit(1000).onSnapshot(function(s){ State.solicitudes = mapDocs(s, normSolicitud).filter(function(x){ return enAlcance(x.contratoId); }); syncAuditoria(); syncRegistro(); resolverCuentas(); scheduleRender(); }, onSubError));
     subs.push(q('problematicas').orderBy('ts', 'desc').limit(500).onSnapshot(function(s){ State.problematicas = mapDocs(s, normProblematica).filter(function(p){ return enAlcance(p.contratoId) && !p.isDeleted; }); syncAuditoria(); resolverCuentas(); scheduleRender(); }, onSubError));
     if((Session.role === 'admin' || Session.role === 'validador') && puedeAprobar()){
       subs.push(db.collection('permisos').onSnapshot(function(s){
         State.permisos = mapDocs(s, normPermiso).filter(function(x){ return Session.role === 'admin' || (x.rol === 'if' && x.contratos.some(enAlcance)); });
-        resolverCuentas(); scheduleRender();
+        syncRegistro(); resolverCuentas(); scheduleRender();
       }, onSubError));
     }
     if(Session.role === 'if'){
       subs.push(db.doc('notificaciones/' + myUid).onSnapshot(function(s){ State.leidoTs = normLectura(s).leidoTs; scheduleRender(); }, onSubError));
     }
+    if(Session.role === 'admin') syncRegistro();
     if(puedeVerificar()){
       subs.push(db.doc('config/auditoria').onSnapshot(function(s){ var x = docData(s); legado = { problematicas: new Set(cleanStrArr(x.problematicas, 1000, 200)) }; scheduleRender(); }, onSubError));
     }
@@ -1879,6 +2032,8 @@
     subs = [];
     Object.keys(auditSubs).forEach(function(k){ try{ auditSubs[k](); }catch(e){} });
     auditSubs = Object.create(null);
+    Object.keys(regSubs).forEach(function(k){ try{ regSubs[k](); }catch(e){} });
+    regSubs = Object.create(null);
     hashCache.clear(); hashPendiente.clear();
   }
 
@@ -1891,6 +2046,7 @@
     State.problematicas.forEach(function(p){ add(p.autorId); p.bitacora.forEach(function(n){ add(n.autorId); }); });
     State.permisos.forEach(function(p){ add(p.uid); });
     State.permNuevos.forEach(add);
+    Object.keys(State.registro).forEach(function(u){ add(u); });
     return Object.keys(ids);
   }
   function resolverCuentas(){
@@ -1904,6 +2060,24 @@
       });
       if(cambio) scheduleRender();
     }).catch(function(){});
+  }
+
+  /* ---- registro de cambios (solo administrador): una suscripción por cuenta conocida ---- */
+  function syncRegistro(){
+    if(Session.role !== 'admin') return;
+    var ids = Object.create(null);
+    ids[myUid] = 1;
+    State.permisos.forEach(function(x){ ids[x.uid] = 1; });
+    State.solicitudes.forEach(function(x){ if(x.autorId) ids[x.autorId] = 1; if(x.revisorId) ids[x.revisorId] = 1; });
+    State.problematicas.forEach(function(x){ if(x.autorId) ids[x.autorId] = 1; });
+    State.ofHist.forEach(function(x){ if(x.revisorId) ids[x.revisorId] = 1; });
+    Object.keys(ids).slice(0, 100).forEach(function(uid){
+      if(regSubs[uid]) return;
+      regSubs[uid] = db.collection('audit/' + uid + '/cambios').onSnapshot(function(snap){
+        State.registro[uid] = mapDocs(snap, normRegistro).filter(function(r){ return r.actorId === uid; });   // una cuenta no puede anotar a nombre de otra
+        resolverCuentas(); scheduleRender();
+      }, onSubError);
+    });
   }
 
   /* ---- verificación de autoría (nivel central con rol Editor) ---- */
@@ -2019,6 +2193,7 @@
     else if(t === 'historial') renderHistorial();
     else if(t === 'permisos') conGuardia('#permTabla', renderPermisos);
     else if(t === 'config') conGuardia('#panel-config', renderConfig);
+    else if(t === 'registro') renderRegistro();
     else if(t === 'problematicas'){ conGuardia('#kanbanBoard', renderKanban); if(!$('#nuevaProblema').hidden) conGuardia('#pbUnidad', renderPbUnidadSelect); }
     else if(t === 'resueltas') renderResueltas();
   }
@@ -2417,6 +2592,56 @@
     }));
   }
 
+  /* ---- registro de cambios (vista del administrador) ---- */
+  function fmtFechaHora(ts){ return ts ? new Date(ts).toLocaleString('es-CL', { dateStyle:'short', timeStyle:'medium' }) : '—'; }
+  function registrosFiltrados(){
+    var todos = [];
+    Object.keys(State.registro).forEach(function(u){ State.registro[u].forEach(function(r){ todos.push(r); }); });
+    todos.sort(function(a, b){ return (b.ts - a.ts) || (a.id < b.id ? 1 : -1); });
+    var q = ($('#rgQ').value || '').trim().toLowerCase(), ent = $('#rgEntidad').value, act = $('#rgActor').value, desde = cleanDate($('#rgDesde').value), hasta = cleanDate($('#rgHasta').value);
+    return { todos:todos, lista: todos.filter(function(r){
+      if(ent && r.entidad !== ent) return false;
+      if(act && r.actorId !== act) return false;
+      var f = new Date(r.ts - new Date(r.ts).getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+      if(desde && f < desde) return false;
+      if(hasta && f > hasta) return false;
+      if(q){
+        var txt = (r.detalle + ' ' + r.accion + ' ' + r.entidad + ' ' + (r.contratoId ? contratoNombre(r.contratoId) : '') + ' ' + nombreCuenta(r.actorId) + ' ' + r.cambios.map(function(c){ return c.c + ' ' + c.a + ' ' + c.d; }).join(' ')).toLowerCase();
+        if(txt.indexOf(q) === -1) return false;
+      }
+      return true;
+    }) };
+  }
+  function renderRegistro(){
+    var sEnt = $('#rgEntidad'), sAct = $('#rgActor'), fr = registrosFiltrados();
+    if(!sEnt.options.length) setHTML(sEnt, html`<option value="">Todo</option>${ENTIDADES.map(function(e){ return html`<option value="${e[0]}">${e[1]}</option>`; })}`);
+    var actores = Object.keys(State.registro).filter(function(u){ return State.registro[u].length; });
+    var prev = sAct.value;
+    if(sAct.options.length !== actores.length + 1){ setHTML(sAct, html`<option value="">Todas las cuentas</option>${actores.map(function(u){ return html`<option value="${u}">${nombreCuenta(u)}</option>`; })}`); sAct.value = prev; }
+    var visibles = fr.lista.slice(0, State.rgLimite);
+    $('#rgResumen').textContent = fr.lista.length + ' de ' + fr.todos.length + ' cambio' + (fr.todos.length === 1 ? '' : 's') + ' registrados' + (fr.lista.length > visibles.length ? ' · mostrando los ' + visibles.length + ' más recientes' : '');
+    $('#rgVacio').hidden = fr.lista.length > 0;
+    $('#rgMas').hidden = fr.lista.length <= visibles.length;
+    var etiquetaEnt = {}; ENTIDADES.forEach(function(e){ etiquetaEnt[e[0]] = e[1]; });
+    setHTML($('#rgBody'), visibles.map(function(r){
+      var h = r.hash ? hashDe(canonRegistro(r)) : null, integ;
+      if(!r.hash) integ = html`<span class="vbadge muted" title="Sin huella (el navegador no pudo calcularla al registrar)">sin huella</span>`;
+      else if(h === null) integ = html`<span class="vbadge muted">verificando…</span>`;
+      else if(h === r.hash) integ = html`<span class="vbadge ok" title="La huella coincide con el contenido">✓ íntegro</span>`;
+      else integ = html`<span class="vbadge warn" title="El contenido no coincide con su huella: fue alterado">⚠ alterado</span>`;
+      return html`<tr><td class="mono" style="white-space:nowrap;">${fmtFechaHora(r.ts)}</td><td>${nombreCuenta(r.actorId)}<div class="hist-who">${rolLabel(cleanEnum(r.rol, ROL_KEYS) || '')}${r.vistaPrevia ? ' · vista previa' : ''}</div></td><td>${pill('accent', r.accion.replace(/_/g, ' '))}</td><td>${etiquetaEnt[r.entidad] || r.entidad}</td><td>${r.contratoId ? contratoNombre(r.contratoId) : '—'}</td><td>${r.entidad === 'permiso' ? 'Permisos de ' + nombreCuenta(r.entidadId) + ' · ' : ''}${r.detalle}${r.cambios.length ? html`<ul class="rg-cambios">${r.cambios.map(function(c){ return html`<li><b>${c.c}:</b> ${c.a ? html`<s>${c.a}</s> → ` : ''}${c.d || '(vacío)'}</li>`; })}</ul>` : ''}</td><td>${integ}</td></tr>`;
+    }));
+  }
+  function celdaCsv(v){ var t = String(v === null || v === undefined ? '' : v); return /^[=+\-@\t\r]/.test(t) ? "'" + t : t; }   // evita que Excel ejecute fórmulas
+  function exportarRegistroCsv(){
+    var fr = registrosFiltrados();
+    var filas = [['Fecha y hora (ISO)', 'Quién', 'Perfil', 'Acción', 'Qué', 'ID', 'Contrato', 'Detalle', 'Cambios', 'Huella SHA-256']].concat(fr.lista.map(function(r){
+      return [new Date(r.ts).toISOString(), nombreCuenta(r.actorId), rolLabel(cleanEnum(r.rol, ROL_KEYS) || ''), r.accion, r.entidad, r.entidadId, r.contratoId ? contratoNombre(r.contratoId) : '', r.detalle,
+        r.cambios.map(function(c){ return c.c + ': ' + (c.a ? c.a + ' → ' : '') + c.d; }).join(' | '), r.hash].map(celdaCsv);
+    }));
+    XL.descargar('registro_cambios_' + todayISO() + '.csv', 'text/csv;charset=utf-8', XL.csvTexto(filas));
+  }
+
   /* ---- pesos (admin) ---- */
   function sumaPesos(textos){
     var centavos = 0, faltan = 0;
@@ -2574,7 +2799,7 @@
     Session.role = null; Session.contratos = null; Session.rolesContrato = null; Session.contratoActivo = null; Session.tab = null; Session.preview = false;
     State = estadoVacio();
     $('#modalBack').hidden = true; document.body.style.overflow = ''; $('#notifPanel').hidden = true; $('#btnNotif').hidden = true;
-    ['#ctKpis', '#ctCards', '#gbKpis', '#gbCards', '#gbAlertas', '#gbFiltros', '#gbAprobaciones', '#solFiltros', '#solLista', '#bjKpis', '#bjLista', '#bjAlertas', '#hsBody', '#permTabla', '#permResultados', '#cfContratos', '#cfUnidades', '#cfHitos', '#permAprobadores', '#cfPesoContratos', '#impContratosBox', '#impUnidadesBox', '#kanbanBoard', '#resueltasBody', '#cgAvUnidad', '#cgAvInfo', '#avTimeline', '#avContrato', '#htContrato', '#ganttWrap', '#modalBody', '#notifPanel', '#pbUnidad', '#whoami', '#tabsNav'].forEach(function(sel){ setHTML($(sel), ''); });
+    ['#ctKpis', '#ctCards', '#gbKpis', '#gbCards', '#gbAlertas', '#gbFiltros', '#gbAprobaciones', '#solFiltros', '#solLista', '#bjKpis', '#bjLista', '#bjAlertas', '#hsBody', '#permTabla', '#permResultados', '#cfContratos', '#cfUnidades', '#cfHitos', '#permAprobadores', '#cfPesoContratos', '#rgBody', '#impContratosBox', '#impUnidadesBox', '#kanbanBoard', '#resueltasBody', '#cgAvUnidad', '#cgAvInfo', '#avTimeline', '#avContrato', '#htContrato', '#ganttWrap', '#modalBody', '#notifPanel', '#pbUnidad', '#whoami', '#tabsNav'].forEach(function(sel){ setHTML($(sel), ''); });
     $('#formAvance').reset(); $('#formProblema').reset(); resetStakeholders();
     $('#appShell').hidden = true; $('#gate').hidden = false;
   }
@@ -2689,6 +2914,12 @@
       conBoton(btn, function(){ return Repo.moverProblematica(p, 'resuelto', $('#mrTexto').value).then(function(){ cerrarModal(); showToast('Problemática marcada como resuelta.'); }, function(err){ reportError(err, 'No se pudo marcar como resuelta.'); }); });
     }
   });
+
+  // registro de cambios
+  ['#rgQ', '#rgDesde', '#rgHasta'].forEach(function(sel){ $(sel).addEventListener('input', function(){ State.rgLimite = 50; renderRegistro(); }); });
+  ['#rgEntidad', '#rgActor'].forEach(function(sel){ $(sel).addEventListener('change', function(){ State.rgLimite = 50; renderRegistro(); }); });
+  $('#rgMas').addEventListener('click', function(){ State.rgLimite += 50; renderRegistro(); });
+  $('#rgCsv').addEventListener('click', function(){ if(Session.role === 'admin') exportarRegistroCsv(); });
 
   // notificaciones
   $('#btnNotif').addEventListener('click', function(){ State.notifAbierto = !State.notifAbierto; renderNotif(); });
@@ -3004,6 +3235,7 @@
      10. INICIO
      ================================================================= */
   async function init(){
+    instalarRegistro();
     MODO_LOCAL = !(window.claude && typeof window.claude.use === 'function');
     if(MODO_LOCAL){
       MODO_DEMO = true;
