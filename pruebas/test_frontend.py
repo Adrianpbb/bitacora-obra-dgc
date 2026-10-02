@@ -142,7 +142,7 @@ def base():
         'solicitudes/sx': {'tipo': 'avance', 'contratoId': 'c2', 'unidadId': 'u2', 'valorPropuesto': 99, 'estado': 'PENDIENTE_APROBACION',
                            'nota': 'SECRETO-C2-SOLICITUD', 'autorId': 'u_otro', 'creadoTs': 1790000000000, 'enviadoTs': 1790000000000},
         'problematicas/p2': {'contratoId': 'c2', 'titulo': 'SECRETO-C2-PB', 'descripcion': 'd', 'estado': 'detectado', 'ts': 4},
-        'permisos/u_if1': {'rol': 'if', 'contratos': ['c1'], 'activo': True},
+        'permisos/u_if1': {'rol': 'if', 'contratos': ['c1'], 'correo': 'ines.if@example.org', 'activo': True},
         'permisos/u_val': {'rol': 'validador', 'contratos': ['c1'], 'activo': True},
     }
     return s
@@ -350,6 +350,7 @@ def escenario_if(p):
         n = len(escrituras(page))
         page.click('#notifLeidas')
         nuevas = esperar(page, 'notificaciones/u_if1', n)
+        page.wait_for_selector('#bellN', state='hidden', timeout=5000)
         check('Marcar leídas guarda leidoTs por usuario y apaga el contador', isinstance(nuevas[-1]['data']['leidoTs'], int) and set(nuevas[-1]['data']) == {'leidoTs'} and page.is_hidden('#bellN'), nuevas[-1])
         page.click('#notifIr')
         check('El panel lleva a Mis solicitudes (resueltas)', page.locator('#solFiltros .filter-chip.active', has_text='Resueltas').count() == 1 and page.is_hidden('#notifPanel'))
@@ -427,6 +428,13 @@ def escenario_validador(p):
         card = page.inner_text('#bjLista .sol[data-id=s1]')
         check('Comparativo valor actual vs propuesto con diferencia', '62%' in card and '70%' in card and '+8 puntos porcentuales' in card, card)
         check('Autoría de la solicitud verificada por recibo', '✓ verificado' in card, card)
+        ident = page.inner_text('#bjLista .sol[data-id=s2] .ident').lower()
+        check('Solicitud de fecha: Contrato / Sector / Hito a modificar bien identificados',
+              'contrato' in ident and 'red aeroportuaria austral' in ident and 'sector' in ident and 'aeródromo' in ident and 'hito a modificar' in ident and 'inicio de obras' in ident, ident)
+        check('Esos datos se ven con letra grande', page.evaluate("parseFloat(getComputedStyle(document.querySelector('#bjLista .sol[data-id=s2] .ident strong')).fontSize)") >= 17)
+        s2txt = page.inner_text('#bjLista .sol[data-id=s2]')
+        check('Muestra valor actual → propuesto y la justificación del IF', 'VALOR ACTUAL' in s2txt.upper() and 'VALOR PROPUESTO' in s2txt.upper(), s2txt)
+        check('Justificación visible', 'Permisos' in s2txt and 'Justificación del IF' in s2txt, s2txt)
         check('Solicitud propia del validador no se puede aprobar', page.locator('#bjLista .sol[data-id=s3] .js-aprobar').count() == 0)
         check('Solicitudes de otros contratos no aparecen', page.locator('#bjLista .sol[data-id=sx]').count() == 0)
 
@@ -437,6 +445,10 @@ def escenario_validador(p):
         of = next(w for w in nuevas if w['path'] == 'oficial/avance-u1')['data']
         check('Aprobar publica el valor oficial, el historial y cierra la solicitud',
               of['valor'] == 70 and 'oficial/hist-s1' in rutas and nuevas[-1]['data']['estado'] == 'APROBADO', rutas)
+        page.wait_for_selector('#modalBody .js-mailto')
+        cuerpo = urllib.parse.unquote(page.get_attribute('#modalBody .js-mailto', 'href'))
+        check('Tras aprobar, "Avisar por correo al IF" va dirigido al IF autor', cuerpo.startswith('mailto:ines.if@example.org?subject=') and 'APROBADA' in cuerpo and 'Contrato: Red Aeroportuaria Austral' in cuerpo and '70%' in cuerpo, cuerpo)
+        page.click('#modalBody .js-modal-cerrar')
 
         n = len(escrituras(page))
         page.click('#bjLista .sol[data-id=s2] .js-rechazar')
@@ -446,6 +458,10 @@ def escenario_validador(p):
         page.click('#bjLista .sol[data-id=s2] .js-rechazo-ok')
         nuevas = esperar(page, 'solicitudes/s2', n)
         check('Rechazo guardado con comentario', nuevas[-1]['data']['estado'] == 'RECHAZADO' and 'respaldo' in nuevas[-1]['data']['comentarioRevision'])
+        page.wait_for_selector('#modalBody .js-mailto')
+        cuerpo = urllib.parse.unquote(page.get_attribute('#modalBody .js-mailto', 'href'))
+        check('Tras rechazar, el correo al IF incluye el comentario del revisor', cuerpo.startswith('mailto:ines.if@example.org') and 'RECHAZADA' in cuerpo and 'Motivo del rechazo: Falta respaldo del permiso sectorial' in cuerpo and 'Sector: Aeródromo' in cuerpo and 'Hito a modificar: Inicio de obras' in cuerpo, cuerpo)
+        page.click('#modalBody .js-modal-cerrar')
 
         n = len(escrituras(page))
         page.click('#bjAlertas .js-publicar[data-pid=p1]')

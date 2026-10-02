@@ -369,6 +369,9 @@
   .ident div{ font-size:15px; line-height:1.4; overflow-wrap:anywhere; }
   .ident b{ color:var(--ink-soft); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin-right:6px; }
   .ident strong{ font-size:17px; }
+  .sol .ident{ margin:0; background:var(--accent-soft); border-color:var(--accent); }
+  .sol .ident div{ font-size:16px; }
+  .sol .ident strong{ font-size:19px; }
   .ficha-sec{ margin:12px 0 4px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); }
   .ficha-txt{ font-size:13px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
   .ok-box{ background:var(--good-soft); color:var(--good); border-radius:10px; padding:10px 14px; font-weight:700; font-size:13.5px; margin-bottom:12px; }
@@ -1864,7 +1867,7 @@
       if(propio) acciones = html`<span class="helper" style="margin:0;">La enviaste tú: debe revisarla otra persona.</span>`;
       else if(State.rechazando.has(s.id)) acciones = html`<div style="flex:1 1 100%;"><label for="${'motivo-' + s.id}">Motivo del rechazo (obligatorio)</label><textarea class="bj-motivo" id="${'motivo-' + s.id}" maxlength="2000">${State.rechazoTexto[s.id] || ''}</textarea></div><button class="btn secondary small js-rechazo-volver" type="button">Volver</button><button class="btn danger small js-rechazo-ok" type="button">Confirmar rechazo</button>`;
       else acciones = html`<button class="btn ghost-danger small js-rechazar" type="button">Rechazar</button><button class="btn good small js-aprobar" type="button">Aprobar</button>`;
-      return html`<article class="sol" data-id="${s.id}"><div class="sol-head"><span class="sol-tipo">${tipo ? tipo.label : ''}</span>${diasPill(s)}${verifBadge(st, s.autorId)}</div><div class="sol-ref">${contratoNombre(s.contratoId)} · ${refEtiqueta(s.tipo, s.ref)} · propuso ${nombreCuenta(s.autorId)} el ${fmtTs(s.enviadoTs)}</div><div class="cmp"><div class="cmp-col"><span>Valor actual</span><strong>${fmtValor(s.tipo, act.v)}</strong><small>${act.meta}</small></div><div class="cmp-arrow" aria-hidden="true">→</div><div class="cmp-col prop"><span>Valor propuesto</span><strong>${fmtValor(s.tipo, s.valorPropuesto)}</strong><small>${deltaTxt(s, act.v) + desvio}</small></div></div>${s.nota ? html`<div class="sol-nota"><strong>Nota del IF:</strong> ${s.nota}</div>` : ''}<div class="sol-actions">${acciones}</div></article>`;
+      return html`<article class="sol" data-id="${s.id}"><div class="sol-head"><span class="sol-tipo">${tipo ? tipo.label : ''}</span>${diasPill(s)}${verifBadge(st, s.autorId)}</div>${identBloque(s.contratoId, sectorDe(s), s.tipo === 'avance' ? 'Dato a modificar' : 'Hito a modificar', hitoDeSol(s))}<div class="sol-ref">Propuso ${nombreCuenta(s.autorId)} el ${fmtTs(s.enviadoTs)}${s.tipo === 'avance' && s.fechaReporte ? ' · reporte del ' + fmtDate(s.fechaReporte) : ''}</div><div class="cmp"><div class="cmp-col"><span>Valor actual</span><strong>${fmtValor(s.tipo, act.v)}</strong><small>${act.meta}</small></div><div class="cmp-arrow" aria-hidden="true">→</div><div class="cmp-col prop"><span>Valor propuesto</span><strong>${fmtValor(s.tipo, s.valorPropuesto)}</strong><small>${deltaTxt(s, act.v) + desvio}</small></div></div>${s.nota ? html`<div class="sol-nota"><strong>${s.tipo === 'fecha_programada' ? 'Justificación del IF' : 'Nota del IF'}:</strong> ${s.nota}</div>` : html`<div class="sol-nota" style="opacity:.7;">Sin justificación ni nota.</div>`}<div class="sol-actions">${acciones}</div></article>`;
     }) : html`<div class="empty-state">No hay solicitudes pendientes. ¡Bandeja al día!</div>`);
     var huerfanas = alertasActivas(null).filter(function(a){ return !cand.some(function(p){ return p.id === a.problematicaId; }); });
     var filas = cand.map(function(p){
@@ -2175,12 +2178,12 @@
   $('#bjLista').addEventListener('click', function(e){
     var card = cerca(e.target, '.sol'); if(!card) return;
     var s = findIn(State.solicitudes, cleanId(card.getAttribute('data-id'))); if(!s) return;
-    if(cerca(e.target, '.js-aprobar')) conBoton(e.target, function(){ return Repo.aprobar(s).then(function(){ showToast('Aprobada: ya es el dato oficial.'); }, function(err){ reportError(err, 'No se pudo aprobar.'); }); });
+    if(cerca(e.target, '.js-aprobar')) conBoton(e.target, function(){ return Repo.aprobar(s).then(function(){ showToast('Aprobada: ya es el dato oficial.'); abrirModalDecision(s, 'APROBADO', ''); }, function(err){ reportError(err, 'No se pudo aprobar.'); }); });
     else if(cerca(e.target, '.js-rechazar')){ State.rechazando.add(s.id); renderBandeja(); var t = document.getElementById('motivo-' + s.id); if(t) t.focus(); }
     else if(cerca(e.target, '.js-rechazo-volver')){ State.rechazando.delete(s.id); renderBandeja(); }
     else if(cerca(e.target, '.js-rechazo-ok')){
       var motivo = card.querySelector('.bj-motivo') ? card.querySelector('.bj-motivo').value : '';
-      conBoton(e.target, function(){ return Repo.rechazar(s, motivo).then(function(){ State.rechazando.delete(s.id); delete State.rechazoTexto[s.id]; showToast('Solicitud rechazada; el IF verá tu comentario.'); }, function(err){ reportError(err, 'No se pudo rechazar.'); }); });
+      conBoton(e.target, function(){ return Repo.rechazar(s, motivo).then(function(){ State.rechazando.delete(s.id); delete State.rechazoTexto[s.id]; showToast('Solicitud rechazada; el IF verá tu comentario.'); abrirModalDecision(s, 'RECHAZADO', cleanStr(motivo, LIM.motivo, true)); }, function(err){ reportError(err, 'No se pudo rechazar.'); }); });
     }
   });
   $('#bjAlertas').addEventListener('click', function(e){
