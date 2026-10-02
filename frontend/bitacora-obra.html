@@ -407,6 +407,21 @@
   .sem-ley .dot{ flex:none; width:9px; height:9px; border-radius:50%; margin-top:4px; }
   .sem-ley .dot.bad{ background:var(--bad); } .sem-ley .dot.warn{ background:var(--warn); } .sem-ley .dot.good{ background:var(--good); }
 
+  /* ---------- asignación de contratos (muchos contratos) ---------- */
+  .perm-resumen{ font-size:13px; }
+  .perm-nombres{ font-size:11.5px; color:var(--ink-soft); margin:3px 0 7px; max-width:34ch; line-height:1.4; }
+  .mc-barra{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  .mc-barra input[type="search"]{ flex:1; min-width:220px; }
+  .mc-acciones{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+  .mc-lista{ border:1px solid var(--line); border-radius:10px; max-height:46vh; overflow-y:auto; background:var(--surface); }
+  .mc-fila{ display:flex; gap:10px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line); margin:0; font-weight:500; cursor:pointer; }
+  .mc-fila:last-child{ border-bottom:none; }
+  .mc-fila:hover{ background:var(--surface-2); }
+  .mc-fila.on{ background:var(--accent-soft); }
+  .mc-nombre{ flex:1; min-width:0; overflow-wrap:anywhere; font-size:13px; }
+  .mc-rol{ width:auto !important; padding:3px 6px !important; font-size:12px !important; }
+  .asig-box{ margin-bottom:16px; }
+
   /* ---------- checklist editable ---------- */
   .tareas-lista{ list-style:none; margin:0 0 8px; padding:0; display:flex; flex-direction:column; gap:6px; counter-reset:t; }
   .tarea-fila{ display:flex; gap:8px; align-items:center; counter-increment:t; }
@@ -610,6 +625,12 @@
       <section id="panel-permisos" class="panel">
         <div class="panel-head"><div><h2>Gestión de permisos</h2><p>Busca a la persona en el directorio, asígnale un perfil y los contratos a los que tiene acceso.</p></div></div>
         <p class="helper">En el menú Compartir del artifact: <strong>Validadores y Administradores</strong> necesitan nivel Editor (sin eso el servidor rechaza sus aprobaciones), <strong>IF/AIF</strong> nivel Colaborador y <strong>Gabinete</strong> puede ser Lector (solo ve datos aprobados).</p>
+        <div class="card asig-box">
+          <strong>Asignar contratos por correo electrónico</strong>
+          <p class="helper" style="margin:4px 0 8px;">Si en los contratos cargaste el correo del IF titular y del suplente, no hace falta marcar contrato por contrato: el sistema asigna a cada IF los contratos donde aparece su correo (el correo de la persona se anota en su fila de más abajo). Primero verás qué se agregaría.</p>
+          <div class="btn-row" style="justify-content:flex-start;"><button class="btn small" type="button" id="btnAsigCorreo">Revisar asignaciones por correo</button></div>
+          <div id="asigCorreoBox"></div>
+        </div>
         <div class="perm-search">
           <input id="permBuscar" type="search" placeholder="Buscar persona por nombre…" autocomplete="off" aria-label="Buscar persona">
           <div class="perm-results" id="permResultados" role="listbox"></div>
@@ -630,7 +651,7 @@
           <div class="btn-row" style="justify-content:flex-start;"><button class="btn secondary small js-plantilla" data-tipo="contratos" data-formato="xlsx" type="button">Descargar plantilla (.xlsx)</button><button class="btn secondary small js-plantilla" data-tipo="contratos" data-formato="csv" type="button">Descargar plantilla (.csv)</button><button class="btn small js-subir" data-tipo="contratos" type="button">Subir Excel / CSV</button><input type="file" id="impContratosFile" data-tipo="contratos" accept=".xlsx,.csv" hidden aria-label="Archivo de contratos"></div>
           <div id="impContratosBox"></div>
         </div>
-        <div class="table-wrap" style="margin-top:12px;"><table><thead><tr><th>COD_DEAF</th><th>Contrato</th><th>Nombra sus unidades como</th><th>IF titular (referencial)</th><th>IF suplente (referencial)</th><th>Correo del aprobador</th><th>Activo</th><th></th></tr></thead><tbody id="cfContratos"></tbody></table></div>
+        <div class="table-wrap" style="margin-top:12px;"><table><thead><tr><th>COD_DEAF</th><th>Contrato</th><th>Nombra sus unidades como</th><th>IF titular (referencial)</th><th>Correo IF titular</th><th>IF suplente (referencial)</th><th>Correo IF suplente</th><th>Correo del aprobador</th><th>Activo</th><th></th></tr></thead><tbody id="cfContratos"></tbody></table></div>
         <div style="margin-top:10px;"><button class="btn secondary small" type="button" id="btnAddContrato">+ Agregar contrato</button></div>
         <p class="section-title">Peso de cada contrato en el avance global</p>
         <p class="helper">El % de avance global es un promedio <strong>ponderado</strong> por estos pesos (deben sumar 100% entre los contratos activos). Mientras a algún contrato le falte su peso, el sistema usa promedio simple y lo indica.</p>
@@ -833,7 +854,7 @@
   function normContrato(d){
     var id = cleanId(d.id); if(!id) return null;
     var x = docData(d);
-    return { id:id, nombre: cleanStr(x.nombre, LIM.nombre) || '(sin nombre)', codDeaf: cleanStr(x.codDeaf, LIM.codDeaf), unidadLabel: cleanStr(x.unidadLabel, LIM.label), inspectorNombre: cleanStr(x.inspectorNombre, LIM.inspector), inspectorSuplente: cleanStr(x.inspectorSuplente, LIM.inspector), correoAprobador: cleanEmail(x.correoAprobador), peso: cleanPeso(x.peso), activo: x.activo !== false };
+    return { id:id, nombre: cleanStr(x.nombre, LIM.nombre) || '(sin nombre)', codDeaf: cleanStr(x.codDeaf, LIM.codDeaf), unidadLabel: cleanStr(x.unidadLabel, LIM.label), inspectorNombre: cleanStr(x.inspectorNombre, LIM.inspector), inspectorSuplente: cleanStr(x.inspectorSuplente, LIM.inspector), correoAprobador: cleanEmail(x.correoAprobador), correoIfTitular: cleanEmail(x.correoIfTitular), correoIfSuplente: cleanEmail(x.correoIfSuplente), peso: cleanPeso(x.peso), activo: x.activo !== false };
   }
   function normUnidad(d){
     var id = cleanId(d.id), x = docData(d), cid = cleanId(x.contratoId);
@@ -1131,7 +1152,7 @@
       recibos:Object.create(null), recibosCargados:Object.create(null), cuentas:Object.create(null),
       expRadar:new Set(), expHist:new Set(), expanded:new Set(), confirmar:new Set(), rechazando:new Set(), rechazoTexto:Object.create(null),
       solFiltro:'PENDIENTE_APROBACION', permEdits:Object.create(null), permNuevos:[], permHits:[], pbSoloCentral:false,
-      leidoTs:0, notifAbierto:false, modal:null, correoEdits:Object.create(null), gbFiltro:'todo', gbLimite:10, semFiltro:null, imp:{ contratos:null, unidades:null }, uAbierto:Object.create(null), pesoEdits:Object.create(null), pesoCEdits:Object.create(null),
+      leidoTs:0, notifAbierto:false, modal:null, correoEdits:Object.create(null), gbFiltro:'todo', gbLimite:10, semFiltro:null, imp:{ contratos:null, unidades:null }, uAbierto:Object.create(null), pesoEdits:Object.create(null), pesoCEdits:Object.create(null), asigCorreo:null,
       registro:Object.create(null), rgLimite:50
     };
   }
@@ -1376,7 +1397,9 @@
       if(Session.role !== 'admin') throw fail('Solo el administrador gestiona contratos.');
       var mail = cleanStr(f.correoAprobador, LIM.correo);
       if(mail && !cleanEmail(mail)) throw fail('El correo del aprobador no tiene un formato válido.');
-      var data = { nombre: cleanStr(f.nombre, LIM.nombre), codDeaf: cleanStr(f.codDeaf, LIM.codDeaf), unidadLabel: cleanStr(f.unidadLabel, LIM.label), inspectorNombre: cleanStr(f.inspectorNombre, LIM.inspector), inspectorSuplente: cleanStr(f.inspectorSuplente, LIM.inspector), correoAprobador: cleanEmail(mail), activo: f.activo !== false };
+      var mt = cleanStr(f.correoIfTitular, LIM.correo), ms = cleanStr(f.correoIfSuplente, LIM.correo);
+      if((mt && !cleanEmail(mt)) || (ms && !cleanEmail(ms))) throw fail('El correo del IF no tiene un formato válido.');
+      var data = { nombre: cleanStr(f.nombre, LIM.nombre), codDeaf: cleanStr(f.codDeaf, LIM.codDeaf), unidadLabel: cleanStr(f.unidadLabel, LIM.label), inspectorNombre: cleanStr(f.inspectorNombre, LIM.inspector), inspectorSuplente: cleanStr(f.inspectorSuplente, LIM.inspector), correoIfTitular: cleanEmail(mt), correoIfSuplente: cleanEmail(ms), correoAprobador: cleanEmail(mail), activo: f.activo !== false };
       if(!data.nombre) throw fail('El contrato necesita un nombre.');
       var previo = id ? findContrato(id) : null;
       if(previo && previo.peso !== null) data.peso = previo.peso;   // este formulario no toca el peso (se edita en su propio bloque)
@@ -1424,6 +1447,18 @@
       if(centavos !== 10000) throw fail('Los pesos suman ' + fmtPeso(centavos / 100) + ': deben sumar exactamente 100%.');
       for(var i = 0; i < cs.length; i++) await db.doc('contratos/' + cs[i].id).update({ peso: vals[cs[i].id] });
     },
+    aplicarAsignacionesPorCorreo: async function(items){
+      if(Session.role !== 'admin') throw fail('Solo el administrador asigna contratos.');
+      if(!puedeAprobar()) throw fail('Tu cuenta no tiene nivel Editor: el servidor rechazaría la asignación.');
+      var n = 0;
+      for(var k = 0; k < items.length; k++){
+        var x = items[k], pm = x.pm, cs = pm.contratos.slice(), roles = Object.assign({}, pm.rolesContrato);
+        Object.keys(x.add).forEach(function(cid){ if(cs.indexOf(cid) === -1) cs.push(cid); roles[cid] = x.add[cid]; });
+        await Repo.guardarPermiso(x.uid, { rol:'if', contratos:cs, rolesContrato:roles, correo:pm.correo, activo:pm.activo });
+        n++;
+      }
+      return { personas:n };
+    },
     importarContratos: async function(items){
       if(Session.role !== 'admin') throw fail('Solo el administrador carga contratos.');
       if(!puedeAprobar()) throw fail('Tu cuenta no tiene nivel Editor: el servidor rechazaría la carga.');
@@ -1435,7 +1470,7 @@
       var r = { creados:0, actualizados:0, iguales:0 };
       for(var k = 0; k < items.length; k++){
         var i = items[k], d = i.datos;
-        var campos = { nombre:d.nombre, unidadLabel:d.unidadLabel, inspectorNombre:d.inspectorNombre, inspectorSuplente:d.inspectorSuplente, correoAprobador:d.correoAprobador };
+        var campos = { nombre:d.nombre, unidadLabel:d.unidadLabel, inspectorNombre:d.inspectorNombre, inspectorSuplente:d.inspectorSuplente, correoIfTitular:d.correoIfTitular, correoIfSuplente:d.correoIfSuplente, correoAprobador:d.correoAprobador };
         if(i.accion === 'crear') campos.codDeaf = d.codDeaf;   // al actualizar se conserva el COD_DEAF guardado
         try{
           if(i.accion === 'crear'){ await db.collection('contratos').add(Object.assign({ activo:true }, campos)); r.creados++; }
@@ -1627,10 +1662,10 @@
       antes: function(a){ var c = a[0] ? findContrato(a[0]) : null; return c ? Object.assign({}, c) : null; },
       desc: function(a, res, antes){
         var f = a[1], desp = { nombre: cleanStr(f.nombre, LIM.nombre), codDeaf: cleanStr(f.codDeaf, LIM.codDeaf), unidadLabel: cleanStr(f.unidadLabel, LIM.label), inspectorNombre: cleanStr(f.inspectorNombre, LIM.inspector),
-          inspectorSuplente: cleanStr(f.inspectorSuplente, LIM.inspector), correoAprobador: cleanEmail(f.correoAprobador), activo: f.activo !== false ? 'sí' : 'no' };
+          inspectorSuplente: cleanStr(f.inspectorSuplente, LIM.inspector), correoIfTitular: cleanEmail(f.correoIfTitular), correoIfSuplente: cleanEmail(f.correoIfSuplente), correoAprobador: cleanEmail(f.correoAprobador), activo: f.activo !== false ? 'sí' : 'no' };
         var ant = antes ? Object.assign({}, antes, { activo: antes.activo ? 'sí' : 'no' }) : null;
         return { accion: a[0] ? 'editar' : 'crear', entidad:'contrato', entidadId: a[0] || (res && res.id) || '', contratoId: a[0] || (res && res.id) || null, detalle:'Contrato ' + desp.nombre,
-          cambios: diffCampos(ant, desp, [['nombre', 'Nombre'], ['codDeaf', 'COD_DEAF'], ['unidadLabel', 'Unidades como'], ['inspectorNombre', 'IF titular'], ['inspectorSuplente', 'IF suplente'], ['correoAprobador', 'Correo aprobador'], ['activo', 'Activo']]) };
+          cambios: diffCampos(ant, desp, [['nombre', 'Nombre'], ['codDeaf', 'COD_DEAF'], ['unidadLabel', 'Unidades como'], ['inspectorNombre', 'IF titular'], ['inspectorSuplente', 'IF suplente'], ['correoIfTitular', 'Correo IF titular'], ['correoIfSuplente', 'Correo IF suplente'], ['correoAprobador', 'Correo aprobador'], ['activo', 'Activo']]) };
       } },
     saveUnidad: {
       antes: function(a){ var u = a[0] ? findIn(State.unidades, a[0]) : null; return u ? Object.assign({}, u) : null; },
@@ -1891,8 +1926,10 @@
     { k:'codDeaf', h:'COD_DEAF', alias:['cod_deaf', 'coddeaf', 'codigo_deaf'], req:true },
     { k:'nombre', h:'NOMBRE_CONTRATO', alias:['nombre_contrato', 'nombre', 'contrato'], req:true },
     { k:'unidadLabel', h:'TIPO_UNIDAD', alias:['tipo_unidad', 'tipo', 'unidadlabel', 'unidad_label'], req:true },
-    { k:'inspectorNombre', h:'IF_TITULAR', alias:['if_titular', 'inspector_titular', 'if'], req:true },
+    { k:'inspectorNombre', h:'IF_TITULAR', alias:['if_titular', 'inspector_titular', 'if'], req:false },
+    { k:'correoIfTitular', h:'CORREO_IF_TITULAR', alias:['correo_if_titular', 'email_if_titular', 'correo_titular'], req:false },
     { k:'inspectorSuplente', h:'IF_SUPLENTE', alias:['if_suplente', 'inspector_suplente'], req:false },
+    { k:'correoIfSuplente', h:'CORREO_IF_SUPLENTE', alias:['correo_if_suplente', 'email_if_suplente', 'correo_suplente'], req:false },
     { k:'correoAprobador', h:'CORREO_APROBADOR', alias:['correo_aprobador', 'correo', 'email_aprobador'], req:true }
   ];
   var COLS_UNIDADES = [
@@ -1934,8 +1971,14 @@
       if(d.codDeaf && !COD_DEAF_RE.test(d.codDeaf)) err.push('COD_DEAF solo admite letras, números y . _ - /');
       d.nombre = textoCarga(celda(f, m.idx, 'nombre'), LIM.nombre, 'NOMBRE_CONTRATO', err, true);
       d.unidadLabel = textoCarga(celda(f, m.idx, 'unidadLabel'), LIM.label, 'TIPO_UNIDAD', err, true);
-      d.inspectorNombre = textoCarga(celda(f, m.idx, 'inspectorNombre'), LIM.inspector, 'IF_TITULAR', err, true);
+      d.inspectorNombre = textoCarga(celda(f, m.idx, 'inspectorNombre'), LIM.inspector, 'IF_TITULAR', err, false);
       d.inspectorSuplente = textoCarga(celda(f, m.idx, 'inspectorSuplente'), LIM.inspector, 'IF_SUPLENTE', err, false);
+      [['correoIfTitular', 'CORREO_IF_TITULAR'], ['correoIfSuplente', 'CORREO_IF_SUPLENTE']].forEach(function(par){
+        var raw = cleanStr(celda(f, m.idx, par[0]), 1000);
+        if(raw && !cleanEmail(raw)) err.push(par[1] + ' no es un correo válido');
+        d[par[0]] = cleanEmail(raw);
+      });
+      if(!d.inspectorNombre && !d.correoIfTitular) err.push('Indica IF_TITULAR o CORREO_IF_TITULAR');
       var mail = cleanStr(celda(f, m.idx, 'correoAprobador'), 1000);
       if(!mail) err.push('CORREO_APROBADOR es obligatorio'); else if(!cleanEmail(mail)) err.push('CORREO_APROBADOR no es un correo válido'); d.correoAprobador = cleanEmail(mail);
       var clave = d.codDeaf.toLowerCase();
@@ -1946,7 +1989,7 @@
         if(coinc.length > 1) err.push('COD_DEAF repetido en la base (' + coinc.length + ' contratos): corrígelo en Configuración');
         else if(coinc.length === 1){
           var c0 = coinc[0]; id = c0.id;
-          var igual = c0.nombre === d.nombre && c0.unidadLabel === d.unidadLabel && c0.inspectorNombre === d.inspectorNombre && c0.inspectorSuplente === d.inspectorSuplente && c0.correoAprobador === d.correoAprobador;
+          var igual = c0.nombre === d.nombre && c0.unidadLabel === d.unidadLabel && c0.inspectorNombre === d.inspectorNombre && c0.inspectorSuplente === d.inspectorSuplente && c0.correoIfTitular === d.correoIfTitular && c0.correoIfSuplente === d.correoIfSuplente && c0.correoAprobador === d.correoAprobador;
           accion = igual ? 'igual' : 'actualizar';
         }
       }
@@ -1993,7 +2036,8 @@
       { nombre:'Instrucciones', filas:[['Campo', 'Qué poner'],
         ['COD_DEAF', 'Código único del contrato (letras, números y . _ - /). Si ya existe en la Bitácora, la fila actualiza ese contrato.'],
         ['NOMBRE_CONTRATO', 'Nombre del contrato (obligatorio).'], ['TIPO_UNIDAD', 'Cómo se llaman sus subsectores: Sector, Hospital, Aeródromo, Cárcel… (obligatorio).'],
-        ['IF_TITULAR', 'Cargo o nombre referencial del Inspector Fiscal titular (obligatorio).'], ['IF_SUPLENTE', 'Cargo o nombre referencial del suplente (opcional).'],
+        ['IF_TITULAR / CORREO_IF_TITULAR', 'Nombre referencial y/o correo del Inspector Fiscal titular. Debe venir al menos uno de los dos. Con el correo se pueden asignar los contratos a la persona (Gestión de permisos → Asignar por correo).'],
+        ['IF_SUPLENTE / CORREO_IF_SUPLENTE', 'Nombre referencial y/o correo del IF suplente (opcionales).'],
         ['CORREO_APROBADOR', 'Correo del aprobador del contrato (obligatorio). A esta dirección se abre el aviso de solicitudes.'],
         ['Notas', 'Nada se borra: los contratos que no estén en el archivo quedan como están. Use solo la hoja "Contratos". Las filas con errores se muestran antes de confirmar y, si hay alguna, no se importa nada.']] }];
   }
@@ -2650,6 +2694,68 @@
     return p ? { rol:p.rol, contratos:p.contratos.slice(), rolesContrato:Object.assign({}, p.rolesContrato), correo:p.correo, activo:p.activo, guardado:true } : { rol:'if', contratos:[], rolesContrato:{}, correo:'', activo:true, guardado:false };
   }
   function copiaEd(ed){ return { rol:ed.rol, contratos:ed.contratos.slice(), rolesContrato:Object.assign({}, ed.rolesContrato), correo:ed.correo, activo:ed.activo, guardado:false }; }
+  function resumenContratos(uid, e){
+    var n = e.contratos.length, esIF = e.rol === 'if';
+    var t = esIF ? e.contratos.filter(function(c){ return (e.rolesContrato[c] || 'titular') === 'titular'; }).length : 0;
+    var nombres = nombresContratos(e.contratos), muestra = nombres.slice(0, 3).join(', ') + (nombres.length > 3 ? ' y ' + (nombres.length - 3) + ' más' : '');
+    return html`<div class="perm-resumen"><strong>${n} contrato${n === 1 ? '' : 's'}</strong>${esIF && n ? ' · ' + t + ' titular · ' + (n - t) + ' suplente' : ''}</div><div class="perm-nombres">${n ? muestra : 'Ninguno todavía'}</div>${esIF && n > 2 ? html`<div class="helper" style="margin:0 0 6px; color:var(--warn);">Normalmente un IF tiene hasta 2 contratos (titular y suplente). Revisa esta asignación.</div>` : ''}<button type="button" class="btn secondary small js-perm-contratos">Editar contratos…</button>`;
+  }
+  function filtrarContratosModal(m){
+    var q = (m.q || '').trim().toLowerCase();
+    return contratos.filter(function(c){ return c.activo; }).filter(function(c){
+      if(m.f === 'asignados' && !m.sel[c.id]) return false;
+      if(m.f === 'sin' && m.sel[c.id]) return false;
+      return !q || (c.nombre + ' ' + c.codDeaf).toLowerCase().indexOf(q) !== -1;
+    });
+  }
+  function renderMcLista(){
+    var m = State.modal; if(!m || m.k !== 'contratos' || !$('#mcLista')) return;
+    var vis = filtrarContratosModal(m), esIF = m.rol === 'if', total = contratos.filter(function(c){ return c.activo; }).length, n = Object.keys(m.sel).length;
+    setHTML($('#mcLista'), vis.length ? vis.slice(0, 300).map(function(c){
+      var on = !!m.sel[c.id];
+      return html`<label class="mc-fila${on ? ' on' : ''}"><input type="checkbox" class="mc-chk" data-cid="${c.id}"${on ? ' checked' : ''}><span class="mc-nombre">${c.nombre}${c.codDeaf ? html` <span class="pill muted mono">${c.codDeaf}</span>` : ''}</span>${on && esIF ? html`<select class="mc-rol" data-cid="${c.id}" aria-label="${'Rol en ' + c.nombre}">${ROL_CONTRATO.map(function(r){ return html`<option value="${r.key}"${m.sel[c.id] === r.key ? ' selected' : ''}>${r.label}</option>`; })}</select>` : ''}</label>`;
+    }) : html`<div class="notif-vacio">Ningún contrato coincide con la búsqueda.</div>`);
+    $('#mcCuenta').textContent = n + ' seleccionado' + (n === 1 ? '' : 's') + ' de ' + total + ' · mostrando ' + Math.min(vis.length, 300) + (vis.length > 300 ? ' de ' + vis.length + ' (afina la búsqueda)' : '');
+    $all('.mc-filtro').forEach(function(b){ b.setAttribute('aria-pressed', b.getAttribute('data-f') === m.f ? 'true' : 'false'); });
+  }
+  function abrirModalContratos(uid){
+    var ed = edicionPermiso(uid), sel = {};
+    ed.contratos.forEach(function(c){ sel[c] = ed.rol === 'if' ? (ed.rolesContrato[c] || 'titular') : 'titular'; });
+    State.modal = { k:'contratos', uid:uid, rol:ed.rol, sel:sel, q:'', f:'todos' };
+    abrirModal(html`<h3 id="modalTitulo">Contratos de ${nombreCuenta(uid)}</h3><p class="helper">Perfil: <strong>${rolLabel(ed.rol)}</strong>. Busca por nombre o COD_DEAF y marca los contratos que le corresponden${ed.rol === 'if' ? '; para cada uno elige si es titular o suplente' : ''}. Los cambios se guardan con el botón "Guardar" de la fila.</p>
+      <div class="mc-barra"><input type="search" id="mcQ" placeholder="Buscar contrato o COD_DEAF…" autocomplete="off" aria-label="Buscar contrato"><div class="seg"><button type="button" class="filter-chip mc-filtro" data-f="todos" aria-pressed="true">Todos</button><button type="button" class="filter-chip mc-filtro" data-f="asignados" aria-pressed="false">Asignados</button><button type="button" class="filter-chip mc-filtro" data-f="sin" aria-pressed="false">Sin asignar</button></div></div>
+      <div class="mc-acciones"><button type="button" class="btn secondary small js-mc-marcar">Marcar los visibles</button><button type="button" class="btn secondary small js-mc-quitar">Quitar los visibles</button><button type="button" class="btn ghost-danger small js-mc-limpiar">Quitar todos</button><span class="peso-suma" id="mcCuenta" aria-live="polite"></span></div>
+      <div class="mc-lista" id="mcLista"></div>
+      <div class="btn-row" style="margin-top:12px;"><button class="btn secondary js-modal-cerrar" type="button">Cancelar</button><button class="btn js-mc-aplicar" type="button">Aplicar</button></div>`, true);
+    renderMcLista();
+  }
+  /* asignación por correo: contratos cuyo correo de IF coincide con el correo de una persona con perfil IF */
+  function planAsignacionesPorCorreo(){
+    var porCorreo = {}, plan = {}, sinPersona = {};
+    State.permisos.forEach(function(pm){ if(pm.rol === 'if' && pm.activo && pm.correo) porCorreo[pm.correo.toLowerCase()] = pm; });
+    contratos.filter(function(c){ return c.activo; }).forEach(function(c){
+      [[c.correoIfTitular, 'titular'], [c.correoIfSuplente, 'suplente']].forEach(function(par){
+        var mail = (par[0] || '').toLowerCase(); if(!mail) return;
+        if(par[1] === 'suplente' && mail === (c.correoIfTitular || '').toLowerCase()) return;
+        var pm = porCorreo[mail];
+        if(pm){ (plan[pm.uid] = plan[pm.uid] || { pm:pm, add:{} }).add[c.id] = par[1]; }
+        else (sinPersona[mail] = sinPersona[mail] || []).push(c.id);
+      });
+    });
+    var items = Object.keys(plan).map(function(uid){
+      var x = plan[uid], nuevos = Object.keys(x.add).filter(function(cid){ return x.pm.contratos.indexOf(cid) === -1 || (x.pm.rolesContrato[cid] || 'titular') !== x.add[cid]; });
+      return { uid:uid, pm:x.pm, add:x.add, nuevos:nuevos };
+    }).filter(function(x){ return x.nuevos.length; });
+    return { items:items, sinPersona:sinPersona };
+  }
+  function renderAsigCorreo(){
+    var box = $('#asigCorreoBox'), pl = State.asigCorreo;
+    if(!pl){ setHTML(box, ''); return; }
+    var sin = Object.keys(pl.sinPersona);
+    setHTML(box, html`${pl.items.length ? html`<div class="table-wrap" style="margin-top:10px;"><table class="tbl-compact"><thead><tr><th>Persona</th><th>Correo</th><th>Contratos que se agregan o cambian de rol</th></tr></thead><tbody>${pl.items.map(function(x){
+      return html`<tr><td><strong>${nombreCuenta(x.uid)}</strong></td><td>${x.pm.correo}</td><td>${x.nuevos.length} · ${x.nuevos.slice(0, 6).map(function(cid){ var c = findContrato(cid); return (c ? (c.codDeaf || c.nombre) : cid) + ' (' + x.add[cid] + ')'; }).join(', ')}${x.nuevos.length > 6 ? ' y ' + (x.nuevos.length - 6) + ' más' : ''}</td></tr>`;
+    })}</tbody></table></div><div class="btn-row" style="margin-top:10px;"><button type="button" class="btn secondary js-asig-no">Cancelar</button><button type="button" class="btn good js-asig-ok">Aplicar asignaciones (${pl.items.length} persona${pl.items.length === 1 ? '' : 's'})</button></div>` : html`<p class="helper" style="margin:10px 0 0;">No hay asignaciones nuevas por correo: todo lo que coincide ya está asignado.</p>`}${sin.length ? html`<div class="info-line" style="margin-top:10px;">Estos correos de IF aparecen en contratos, pero no hay una persona con perfil IF y ese correo en esta lista (agrégala abajo con su correo): ${sin.slice(0, 15).map(function(m){ return m + ' (' + pl.sinPersona[m].length + ' contrato' + (pl.sinPersona[m].length === 1 ? '' : 's') + ')'; }).join(' · ')}${sin.length > 15 ? ' y ' + (sin.length - 15) + ' más' : ''}</div>` : ''}`);
+  }
   function renderPermResultados(){
     setHTML($('#permResultados'), State.permHits.map(function(h){ return html`<button class="perm-hit js-elegir" type="button" role="option" data-uid="${h.id}">${h.name}</button>`; }));
   }
@@ -2663,7 +2769,7 @@
     setHTML($('#permTabla'), uids.map(function(uid){
       var e = edicionPermiso(uid), conContratos = e.rol === 'if' || e.rol === 'validador', esIF = e.rol === 'if';
       var muchos = esIF && e.contratos.length > 2;
-      return html`<tr data-uid="${uid}"><td><strong>${nombreCuenta(uid)}</strong>${e.guardado ? '' : html` ${pill('warn', 'Sin guardar')}`}</td><td><select class="f-rol" aria-label="Perfil">${ROLES.map(function(r){ return html`<option value="${r.key}"${r.key === e.rol ? ' selected' : ''}>${r.label}</option>`; })}</select>${conContratos ? html`<div style="margin-top:8px;"><label class="helper" style="margin:0 0 4px;" for="${'correo-' + uid}">Correo (para avisos)</label><input type="email" id="${'correo-' + uid}" class="f-correo" maxlength="${LIM.correo}" value="${e.correo}" placeholder="nombre@dominio.cl"></div>` : ''}</td><td>${conContratos ? html`${activos.map(function(c){ var on = e.contratos.indexOf(c.id) !== -1; return html`<span style="display:inline-flex; align-items:center; gap:3px; margin:2px;"><button type="button" class="perm-chip" data-cid="${c.id}" aria-pressed="${on ? 'true' : 'false'}">${c.nombre}</button>${on && esIF ? html`<select class="f-rolctr" data-cid="${c.id}" aria-label="${'Rol en ' + c.nombre}" style="width:auto; padding:3px 6px; font-size:11.5px;">${ROL_CONTRATO.map(function(r){ return html`<option value="${r.key}"${r.key === (e.rolesContrato[c.id] || 'titular') ? ' selected' : ''}>${r.label}</option>`; })}</select>` : ''}</span>`; })}${muchos ? html`<div class="helper" style="margin:6px 0 0; color:var(--warn);">Normalmente un IF tiene como máximo dos contratos (titular y suplente). Revisa esta asignación.</div>` : ''}` : html`<span class="helper" style="margin:0;">${e.rol === 'gabinete' ? 'Ve todos los contratos (solo datos aprobados)' : 'Acceso a todos los contratos'}</span>`}</td><td style="text-align:center;"><input type="checkbox" class="f-activo" aria-label="Activo"${e.activo ? ' checked' : ''}></td><td><button type="button" class="btn small js-guardar-perm">Guardar</button></td></tr>`;
+      return html`<tr data-uid="${uid}"><td><strong>${nombreCuenta(uid)}</strong>${e.guardado ? '' : html` ${pill('warn', 'Sin guardar')}`}</td><td><select class="f-rol" aria-label="Perfil">${ROLES.map(function(r){ return html`<option value="${r.key}"${r.key === e.rol ? ' selected' : ''}>${r.label}</option>`; })}</select>${conContratos ? html`<div style="margin-top:8px;"><label class="helper" style="margin:0 0 4px;" for="${'correo-' + uid}">Correo (para avisos)</label><input type="email" id="${'correo-' + uid}" class="f-correo" maxlength="${LIM.correo}" value="${e.correo}" placeholder="nombre@dominio.cl"></div>` : ''}</td><td>${conContratos ? resumenContratos(uid, e) : html`<span class="helper" style="margin:0;">${e.rol === 'gabinete' ? 'Ve todos los contratos (solo datos aprobados)' : 'Acceso a todos los contratos'}</span>`}</td><td style="text-align:center;"><input type="checkbox" class="f-activo" aria-label="Activo"${e.activo ? ' checked' : ''}></td><td><button type="button" class="btn small js-guardar-perm">Guardar</button></td></tr>`;
     }));
     setHTML($('#permAprobadores'), activos.map(function(c){
       var v = State.correoEdits[c.id] !== undefined ? State.correoEdits[c.id] : c.correoAprobador;
@@ -2755,7 +2861,7 @@
   /* ---- configuración (admin) ---- */
   function renderConfig(){
     setHTML($('#cfContratos'), contratos.map(function(c){
-      return html`<tr data-id="${c.id}"><td><input type="text" class="f-coddeaf mono" maxlength="${LIM.codDeaf}" value="${c.codDeaf}" placeholder="COD_DEAF" aria-label="COD_DEAF" style="min-width:110px;"></td><td><input type="text" class="f-nombre" maxlength="${LIM.nombre}" value="${c.nombre}" aria-label="Nombre del contrato" style="min-width:200px;"></td><td><input type="text" class="f-unidadlabel" maxlength="${LIM.label}" value="${c.unidadLabel}" placeholder="Sector / Hospital / Aeropuerto / Cárcel" aria-label="Nombre de sus unidades"></td><td><input type="text" class="f-inspector" maxlength="${LIM.inspector}" value="${c.inspectorNombre}" aria-label="IF titular"></td><td><input type="text" class="f-suplente" maxlength="${LIM.inspector}" value="${c.inspectorSuplente}" aria-label="IF suplente"></td><td><input type="email" class="f-correo-c" maxlength="${LIM.correo}" value="${c.correoAprobador}" placeholder="aprobador@dominio.cl" aria-label="Correo del aprobador" style="min-width:190px;"></td><td style="text-align:center;"><input type="checkbox" class="f-activo" aria-label="Activo"${c.activo ? ' checked' : ''}></td><td><button type="button" class="btn secondary small js-save">Guardar</button></td></tr>`;
+      return html`<tr data-id="${c.id}"><td><input type="text" class="f-coddeaf mono" maxlength="${LIM.codDeaf}" value="${c.codDeaf}" placeholder="COD_DEAF" aria-label="COD_DEAF" style="min-width:110px;"></td><td><input type="text" class="f-nombre" maxlength="${LIM.nombre}" value="${c.nombre}" aria-label="Nombre del contrato" style="min-width:200px;"></td><td><input type="text" class="f-unidadlabel" maxlength="${LIM.label}" value="${c.unidadLabel}" placeholder="Sector / Hospital / Aeropuerto / Cárcel" aria-label="Nombre de sus unidades"></td><td><input type="text" class="f-inspector" maxlength="${LIM.inspector}" value="${c.inspectorNombre}" aria-label="IF titular"></td><td><input type="email" class="f-cif-t" maxlength="${LIM.correo}" value="${c.correoIfTitular}" placeholder="if.titular@dominio.cl" aria-label="Correo del IF titular" style="min-width:180px;"></td><td><input type="text" class="f-suplente" maxlength="${LIM.inspector}" value="${c.inspectorSuplente}" aria-label="IF suplente"></td><td><input type="email" class="f-cif-s" maxlength="${LIM.correo}" value="${c.correoIfSuplente}" placeholder="if.suplente@dominio.cl" aria-label="Correo del IF suplente" style="min-width:180px;"></td><td><input type="email" class="f-correo-c" maxlength="${LIM.correo}" value="${c.correoAprobador}" placeholder="aprobador@dominio.cl" aria-label="Correo del aprobador" style="min-width:190px;"></td><td style="text-align:center;"><input type="checkbox" class="f-activo" aria-label="Activo"${c.activo ? ' checked' : ''}></td><td><button type="button" class="btn secondary small js-save">Guardar</button></td></tr>`;
     }));
     renderPesosContratos();
     setHTML($('#cfUnidades'), contratos.length ? contratos.map(function(c){
@@ -2882,7 +2988,7 @@
     Session.role = null; Session.contratos = null; Session.rolesContrato = null; Session.contratoActivo = null; Session.tab = null; Session.preview = false;
     State = estadoVacio();
     $('#modalBack').hidden = true; document.body.style.overflow = ''; $('#notifPanel').hidden = true; $('#btnNotif').hidden = true;
-    ['#ctKpis', '#ctCards', '#gbKpis', '#gbCards', '#gbAlertas', '#gbFiltros', '#gbAprobaciones', '#solFiltros', '#solLista', '#bjKpis', '#bjLista', '#bjAlertas', '#hsBody', '#permTabla', '#permResultados', '#cfContratos', '#cfUnidades', '#cfHitos', '#permAprobadores', '#cfPesoContratos', '#rgBody', '#impContratosBox', '#impUnidadesBox', '#kanbanBoard', '#resueltasBody', '#cgAvUnidad', '#cgAvInfo', '#avTimeline', '#avContrato', '#htContrato', '#ganttWrap', '#modalBody', '#notifPanel', '#pbUnidad', '#whoami', '#tabsNav'].forEach(function(sel){ setHTML($(sel), ''); });
+    ['#ctKpis', '#ctCards', '#gbKpis', '#gbCards', '#gbAlertas', '#gbFiltros', '#gbAprobaciones', '#solFiltros', '#solLista', '#bjKpis', '#bjLista', '#bjAlertas', '#hsBody', '#permTabla', '#permResultados', '#cfContratos', '#cfUnidades', '#cfHitos', '#permAprobadores', '#cfPesoContratos', '#rgBody', '#asigCorreoBox', '#impContratosBox', '#impUnidadesBox', '#kanbanBoard', '#resueltasBody', '#cgAvUnidad', '#cgAvInfo', '#avTimeline', '#avContrato', '#htContrato', '#ganttWrap', '#modalBody', '#notifPanel', '#pbUnidad', '#whoami', '#tabsNav'].forEach(function(sel){ setHTML($(sel), ''); });
     $('#formAvance').reset(); $('#formProblema').reset(); resetEditores('nuevo');
     $('#appShell').hidden = true; $('#gate').hidden = false;
   }
@@ -3067,7 +3173,7 @@
   function buscarPersonas(q){
     if(!userNs) return;
     userNs.search(q).then(function(hits){
-      State.permHits = (hits || []).map(function(h){ return { id: cleanId(h.id), name: cleanStr(h.name, 120) }; }).filter(function(h){ return h.id && h.name; });
+      State.permHits = (hits || []).map(function(h){ return { id: cleanId(h.id), name: cleanStr(h.name, 120), email: cleanEmail(h.email) }; }).filter(function(h){ return h.id && h.name; });
       renderPermResultados();
     }).catch(function(){});
   }
@@ -3079,6 +3185,7 @@
     var uid = cleanId(b.getAttribute('data-uid')); if(!uid) return;
     var hit = State.permHits.filter(function(h){ return h.id === uid; })[0];
     if(hit) State.cuentas[uid] = hit.name;
+    if(hit && hit.email && !State.permEdits[uid]){ var base0 = copiaEd(edicionPermiso(uid)); base0.correo = hit.email; State.permEdits[uid] = base0; }   // el directorio ya trae el correo
     if(State.permNuevos.indexOf(uid) === -1) State.permNuevos.push(uid);
     State.permHits = []; $('#permBuscar').value = '';
     renderPermResultados(); renderPermisos();
@@ -3097,21 +3204,48 @@
   $('#permTabla').addEventListener('click', function(e){
     var tr = cerca(e.target, 'tr'); if(!tr) return;
     var uid = cleanId(tr.getAttribute('data-uid')); if(!uid) return;
-    var chip = cerca(e.target, '.perm-chip');
-    if(chip){
-      var cid = cleanId(chip.getAttribute('data-cid')); if(!cid) return;
-      var ed = copiaEd(edicionPermiso(uid));
-      var i = ed.contratos.indexOf(cid);
-      if(i === -1){ ed.contratos.push(cid); if(!ed.rolesContrato[cid]) ed.rolesContrato[cid] = ed.contratos.length === 1 ? 'titular' : 'suplente'; } else ed.contratos.splice(i, 1);
-      State.permEdits[uid] = ed; renderPermisos();
-      return;
-    }
+    if(cerca(e.target, '.js-perm-contratos')){ abrirModalContratos(uid); return; }
     if(cerca(e.target, '.js-guardar-perm')){
       var edicion = edicionPermiso(uid);
       conBoton(e.target, function(){ return Repo.guardarPermiso(uid, edicion).then(function(){ delete State.permEdits[uid]; State.permNuevos = State.permNuevos.filter(function(u){ return u !== uid; }); showToast('Perfil guardado. Se aplica la próxima vez que esa persona ingrese.'); }, function(err){ reportError(err, 'No se pudo guardar el perfil.'); }); });
     }
   });
 
+  // ventana de contratos de una persona
+  $('#modalBody').addEventListener('input', function(e){ if(e.target.id === 'mcQ' && State.modal && State.modal.k === 'contratos'){ State.modal.q = e.target.value; renderMcLista(); } });
+  $('#modalBody').addEventListener('change', function(e){
+    var m = State.modal; if(!m || m.k !== 'contratos') return;
+    var cid = cleanId(e.target.getAttribute && e.target.getAttribute('data-cid')); if(!cid) return;
+    if(e.target.classList.contains('mc-chk')){
+      if(e.target.checked){ m.sel[cid] = m.rol === 'if' ? (Object.keys(m.sel).length ? 'suplente' : 'titular') : 'titular'; } else delete m.sel[cid];
+      renderMcLista();
+    } else if(e.target.classList.contains('mc-rol')){ m.sel[cid] = cleanEnum(e.target.value, ROL_CONTRATO_KEYS) || 'titular'; }
+  });
+  $('#modalBody').addEventListener('click', function(e){
+    var m = State.modal; if(!m || m.k !== 'contratos') return;
+    var f = cerca(e.target, '.mc-filtro');
+    if(f){ m.f = cleanEnum(f.getAttribute('data-f'), ['todos', 'asignados', 'sin']) || 'todos'; renderMcLista(); return; }
+    function marcar(on){ filtrarContratosModal(m).forEach(function(c){ if(on){ if(!m.sel[c.id]) m.sel[c.id] = m.rol === 'if' ? (Object.keys(m.sel).length ? 'suplente' : 'titular') : 'titular'; } else delete m.sel[c.id]; }); renderMcLista(); }
+    if(cerca(e.target, '.js-mc-marcar')) marcar(true);
+    else if(cerca(e.target, '.js-mc-quitar')) marcar(false);
+    else if(cerca(e.target, '.js-mc-limpiar')){ m.sel = {}; renderMcLista(); }
+    else if(cerca(e.target, '.js-mc-aplicar')){
+      var ed = copiaEd(edicionPermiso(m.uid));
+      ed.contratos = Object.keys(m.sel); ed.rolesContrato = {}; ed.contratos.forEach(function(c){ ed.rolesContrato[c] = m.sel[c]; });
+      State.permEdits[m.uid] = ed; cerrarModal(); renderPermisos();
+      showToast('Contratos actualizados en la fila. Pulsa "Guardar" para confirmarlos.');
+    }
+  });
+  // asignar por correo
+  $('#btnAsigCorreo').addEventListener('click', function(){ if(Session.role !== 'admin') return; State.asigCorreo = planAsignacionesPorCorreo(); renderAsigCorreo(); });
+  $('#asigCorreoBox').addEventListener('click', function(e){
+    if(Session.role !== 'admin') return;
+    if(cerca(e.target, '.js-asig-no')){ State.asigCorreo = null; renderAsigCorreo(); }
+    else if(cerca(e.target, '.js-asig-ok')){
+      var pl = State.asigCorreo; if(!pl) return;
+      conBoton(cerca(e.target, '.js-asig-ok'), function(){ return Repo.aplicarAsignacionesPorCorreo(pl.items).then(function(r){ State.asigCorreo = null; renderAsigCorreo(); showToast('Asignaciones aplicadas a ' + r.personas + ' persona' + (r.personas === 1 ? '' : 's') + '.'); }, function(err){ reportError(err, 'No se pudieron aplicar las asignaciones.'); }); });
+    }
+  });
   $('#permAprobadores').addEventListener('input', function(e){
     if(!e.target.classList.contains('f-correo-apr')) return;
     var tr = cerca(e.target, 'tr'), cid = tr && cleanId(tr.getAttribute('data-cid')); if(cid) State.correoEdits[cid] = e.target.value;
@@ -3145,7 +3279,7 @@
   $('#cfContratos').addEventListener('click', function(e){
     if(!cerca(e.target, '.js-save') || Session.role !== 'admin') return;
     var tr = cerca(e.target, 'tr'), c = findContrato(cleanId(tr.getAttribute('data-id'))); if(!c) return;
-    conBoton(e.target, function(){ return Repo.saveContrato(c.id, { codDeaf: tr.querySelector('.f-coddeaf').value, nombre: tr.querySelector('.f-nombre').value, unidadLabel: tr.querySelector('.f-unidadlabel').value, inspectorNombre: tr.querySelector('.f-inspector').value, inspectorSuplente: tr.querySelector('.f-suplente').value, correoAprobador: tr.querySelector('.f-correo-c').value, activo: tr.querySelector('.f-activo').checked }).then(function(){ showToast('Contrato actualizado.'); }, function(err){ reportError(err, 'No se pudo guardar.'); }); });
+    conBoton(e.target, function(){ return Repo.saveContrato(c.id, { codDeaf: tr.querySelector('.f-coddeaf').value, nombre: tr.querySelector('.f-nombre').value, unidadLabel: tr.querySelector('.f-unidadlabel').value, inspectorNombre: tr.querySelector('.f-inspector').value, inspectorSuplente: tr.querySelector('.f-suplente').value, correoIfTitular: tr.querySelector('.f-cif-t').value, correoIfSuplente: tr.querySelector('.f-cif-s').value, correoAprobador: tr.querySelector('.f-correo-c').value, activo: tr.querySelector('.f-activo').checked }).then(function(){ showToast('Contrato actualizado.'); }, function(err){ reportError(err, 'No se pudo guardar.'); }); });
   });
   $('#cfUnidades').addEventListener('toggle', function(e){ var d = e.target; if(d && d.classList && d.classList.contains('uc')){ var cid = cleanId(d.getAttribute('data-cid')); if(cid) State.uAbierto[cid] = d.open; } }, true);
   function textosActivos(det){ return $all('#cfUnidades details[data-cid="' + CSS.escape(det.getAttribute('data-cid')) + '"] tr[data-id]').filter(function(tr){ return tr.querySelector('.f-activo').checked; }).map(function(tr){ return tr.querySelector('.f-peso').value; }); }
@@ -3205,9 +3339,9 @@
     var n = { crear:0, actualizar:0, igual:0, error:0 };
     im.items.forEach(function(i){ if(i.errores.length) n.error++; else n[i.accion]++; });
     var esC = tipo === 'contratos';
-    setHTML(box, html`<div class="imp-res"><strong>${im.archivo}</strong>${pill('good', n.crear + ' nuevo' + (n.crear === 1 ? '' : 's'))}${pill('accent', n.actualizar + ' por actualizar')}${pill('muted', n.igual + ' sin cambios')}${n.error ? pill('bad', n.error + ' fila' + (n.error === 1 ? '' : 's') + ' con errores') : ''}</div><div class="table-wrap"><table class="tbl-compact"><thead><tr><th>Fila</th><th>COD_DEAF</th>${esC ? html`<th>Contrato</th><th>Tipo</th><th>IF titular</th><th>IF suplente</th><th>Correo aprobador</th>` : html`<th>Contrato</th><th>Subsector</th><th>Activo</th>`}<th>Resultado</th><th>Errores</th></tr></thead><tbody>${im.items.map(function(i){
+    setHTML(box, html`<div class="imp-res"><strong>${im.archivo}</strong>${pill('good', n.crear + ' nuevo' + (n.crear === 1 ? '' : 's'))}${pill('accent', n.actualizar + ' por actualizar')}${pill('muted', n.igual + ' sin cambios')}${n.error ? pill('bad', n.error + ' fila' + (n.error === 1 ? '' : 's') + ' con errores') : ''}</div><div class="table-wrap"><table class="tbl-compact"><thead><tr><th>Fila</th><th>COD_DEAF</th>${esC ? html`<th>Contrato</th><th>Tipo</th><th>IF titular</th><th>IF suplente</th><th>Correos IF</th><th>Correo aprobador</th>` : html`<th>Contrato</th><th>Subsector</th><th>Activo</th>`}<th>Resultado</th><th>Errores</th></tr></thead><tbody>${im.items.map(function(i){
       var d = i.datos, a = i.errores.length ? ['bad', 'Error'] : ACCION_PILL[i.accion];
-      return html`<tr class="${i.errores.length ? 'fila-error' : ''}"><td class="mono">${i.fila}</td><td class="mono">${d.codDeaf}</td>${esC ? html`<td>${d.nombre}</td><td>${d.unidadLabel}</td><td>${d.inspectorNombre}</td><td>${d.inspectorSuplente}</td><td>${d.correoAprobador}</td>` : html`<td>${i.contratoNombre || '—'}</td><td>${d.nombre}</td><td>${d.activo ? 'SI' : 'NO'}</td>`}<td>${pill(a[0], a[1])}</td><td class="errs">${i.errores.join(' · ')}</td></tr>`;
+      return html`<tr class="${i.errores.length ? 'fila-error' : ''}"><td class="mono">${i.fila}</td><td class="mono">${d.codDeaf}</td>${esC ? html`<td>${d.nombre}</td><td>${d.unidadLabel}</td><td>${d.inspectorNombre}</td><td>${d.inspectorSuplente}</td><td>${d.correoIfTitular ? 'T: ' + d.correoIfTitular : ''}${d.correoIfTitular && d.correoIfSuplente ? html`<br>` : ''}${d.correoIfSuplente ? 'S: ' + d.correoIfSuplente : ''}</td><td>${d.correoAprobador}</td>` : html`<td>${i.contratoNombre || '—'}</td><td>${d.nombre}</td><td>${d.activo ? 'SI' : 'NO'}</td>`}<td>${pill(a[0], a[1])}</td><td class="errs">${i.errores.join(' · ')}</td></tr>`;
     })}</tbody></table></div><div class="btn-row" style="margin-top:10px;"><button type="button" class="btn secondary js-imp-no" data-tipo="${tipo}">Cancelar</button><button type="button" class="btn good js-imp-ok" data-tipo="${tipo}"${n.error || (!n.crear && !n.actualizar) ? ' disabled' : ''}>${n.error ? 'Corrige el archivo para importar' : (!n.crear && !n.actualizar ? 'Nada que importar' : 'Confirmar importación (' + (n.crear + n.actualizar) + ')')}</button></div>`);
   }
   function tipoImp(el){ var t = el && el.getAttribute && el.getAttribute('data-tipo'); return (t === 'contratos' || t === 'unidades') ? t : null; }

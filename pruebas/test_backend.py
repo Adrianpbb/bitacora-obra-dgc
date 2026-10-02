@@ -558,5 +558,57 @@ class TestRegistroDeCambios(Base):
         self.assertEqual(self.total(), antes)
 
 
+class TestAsignacionPorCorreo(Base):
+    """Cargas y asignaciones con base en correos electrónicos (v10.12, 2026-10-02)."""
+
+    def fila(self, **kw):
+        base = {'codDeaf': 'D-%s', 'nombre': 'C', 'unidadLabel': 'Sector', 'inspectorNombre': '', 'inspectorSuplente': '',
+                'correoIfTitular': '', 'correoIfSuplente': '', 'correoAprobador': 'ap@example.org'}
+        base.update(kw)
+        return base
+
+    def test_la_carga_acepta_correos_y_exige_nombre_o_correo_del_titular(self):
+        r1 = self.repo.importar_contratos(self.admin, [self.fila(codDeaf='D-1', correoIfTitular='ines@example.org', correoIfSuplente='sup@example.org')])
+        self.assertEqual(r1['creados'], 1)
+        c = next(c for c in self.repo.listar_contratos(self.admin) if c['CodDeaf'] == 'D-1')
+        self.assertEqual((c['CorreoIfTitular'], c['CorreoIfSuplente']), ('ines@example.org', 'sup@example.org'))
+        with self.assertRaises(r.ErrorCarga) as cm:
+            self.repo.importar_contratos(self.admin, [self.fila(codDeaf='D-2'), self.fila(codDeaf='D-3', inspectorNombre='IF', correoIfTitular='malo')])
+        self.assertEqual([n for n, _ in cm.exception.errores], [1, 2])
+        self.assertIn('IF titular', cm.exception.errores[0][1])
+
+    def test_sincronizar_asigna_contratos_por_correo(self):
+        self.repo.guardar_usuario(self.admin, 'u_ines', 'Inés', 'INES@example.org')
+        self.repo.guardar_permiso(self.admin, 'u_ines', 'IF', [self.c2])
+        self.repo.guardar_contrato(self.admin, {'nombre': 'Red Aeroportuaria Austral', 'correoIfTitular': 'ines@example.org', 'correoIfSuplente': 'ines@example.org'}, self.c1)
+        k = self.repo.guardar_contrato(self.admin, {'nombre': 'Otro', 'correoIfSuplente': 'Ines@Example.org', 'correoIfTitular': 'nadie@example.org'})
+        res = self.repo.sincronizar_asignaciones_por_correo(self.admin)
+        self.assertEqual((res['nuevas'], res['cambiadas']), (2, 0))
+        self.assertEqual(res['sin_usuario'], {'nadie@example.org': [k]})
+        _, ines = self.repo.abrir_sesion('u_ines')
+        roles = {c['Id']: c['RolContrato'] for c in self.repo.listar_contratos(ines)}
+        self.assertEqual(roles, {self.c1: 'titular', self.c2: 'titular', k: 'suplente'})      # titular y suplente a la vez: gana titular; lo anterior se conserva
+        res2 = self.repo.sincronizar_asignaciones_por_correo(self.admin)
+        self.assertEqual((res2['nuevas'], res2['cambiadas']), (0, 0))                          # idempotente
+
+    def test_solo_ifs_activos_con_correo_y_solo_admin(self):
+        self.repo.guardar_usuario(self.admin, 'u_v', 'Validador', 'v@example.org')
+        self.repo.guardar_permiso(self.admin, 'u_v', 'VALIDADOR', [self.c2])
+        self.repo.guardar_contrato(self.admin, {'nombre': 'Red Aeroportuaria Austral', 'correoIfTitular': 'v@example.org'}, self.c1)
+        res = self.repo.sincronizar_asignaciones_por_correo(self.admin)
+        self.assertEqual(res['nuevas'], 0)                                                     # un validador no se asigna como IF
+        self.assertIn('v@example.org', res['sin_usuario'])
+        for ses in (self.inf, self.val, self.gab):
+            with self.assertRaises(r.AccesoDenegado):
+                self.repo.sincronizar_asignaciones_por_correo(ses)
+
+    def test_la_sincronizacion_queda_en_el_registro(self):
+        antes = self.conn.execute('SELECT COUNT(*) FROM Auditoria').fetchone()[0]
+        self.repo.sincronizar_asignaciones_por_correo(self.admin)
+        fila = self.conn.execute('SELECT Accion, ActorId FROM Auditoria ORDER BY Id DESC LIMIT 1').fetchone()
+        self.assertEqual(fila, ('asignar_por_correo', 'u_admin'))
+        self.assertGreater(self.conn.execute('SELECT COUNT(*) FROM Auditoria').fetchone()[0], antes)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

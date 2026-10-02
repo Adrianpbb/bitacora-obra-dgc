@@ -10,6 +10,14 @@ Formato de cada entrada: versión · fecha · commit — qué cambió · pruebas
 
 ---
 
+## v10.12 · 2026-10-02 — Gestión de permisos para muchos contratos y cargas por correo
+- **Gestión de permisos sin botones sueltos**: cada persona muestra un resumen ("12 contratos · 1 titular · 11 suplente" + los primeros nombres) y el botón **"Editar contratos…"**, que abre una ventana con **búsqueda** por nombre o COD_DEAF, filtros *Todos / Asignados / Sin asignar*, **"Marcar los visibles"**, **"Quitar los visibles"**, **"Quitar todos"**, contador y selector Titular/Suplente por contrato. Probado con 82 contratos.
+- **Cargas con base en correos electrónicos**: el Excel/CSV de contratos acepta `CORREO_IF_TITULAR` y `CORREO_IF_SUPLENTE` (basta el nombre o el correo del titular). La tabla de Configuración también los muestra y edita.
+- **Asignar contratos por correo** (Gestión de permisos): el sistema asigna a cada IF los contratos donde aparece su correo (titular o suplente), muestra primero qué agregaría, conserva lo que ya tenía y avisa de los correos de IF que aún no tienen persona. Cada cambio queda en el Registro de cambios.
+- El directorio completa el correo de la persona cuando lo trae.
+- Backend: `Contrato.CorreoIfTitular/CorreoIfSuplente`, `importar_contratos` con esos correos, `sincronizar_asignaciones_por_correo` (solo ADMIN, idempotente, auditada).
+- Pruebas: frontend 239/239 · backend 58/58.
+
 ## v10.11 · 2026-10-02 — Dashboard más compacto y pesos visibles en Hitos
 - **Tarjetas del dashboard**: "Avance global", "Hitos atrasados" y "Alertas escaladas / En revisión" dejan de estirarse a la altura de la tarjeta del semáforo. Ahora el semáforo (con su leyenda) va a la izquierda y las tres cifras son tarjetas compactas apiladas a la derecha; en teléfono quedan una bajo otra.
 - **Hitos (Gantt)**: cada sector muestra su **peso** ("peso 70%") o "sin peso"; el peso se define en Configuración → Unidades y subsectores. En la línea base de hitos (Configuración) el selector de sector también muestra el peso.

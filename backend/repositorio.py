@@ -62,8 +62,8 @@ _ASIGNADOS = 'SELECT ContratoId FROM UsuarioContrato WHERE UsuarioId = ? AND Act
 
 # Lecturas: (nombre, por_usuario) -> SQL literal. Las variantes "por usuario" reciben el id de la sesión.
 _LECTURAS = {
-    ('contratos', False): 'SELECT Id, Nombre, CodDeaf, Peso, UnidadLabel, InspectorNombre, InspectorSuplente, CorreoAprobador, Activo FROM Contrato ORDER BY Nombre',
-    ('contratos', True): 'SELECT c.Id, c.Nombre, c.CodDeaf, c.Peso, c.UnidadLabel, c.InspectorNombre, c.InspectorSuplente, c.CorreoAprobador, c.Activo, '
+    ('contratos', False): 'SELECT Id, Nombre, CodDeaf, Peso, UnidadLabel, InspectorNombre, InspectorSuplente, CorreoIfTitular, CorreoIfSuplente, CorreoAprobador, Activo FROM Contrato ORDER BY Nombre',
+    ('contratos', True): 'SELECT c.Id, c.Nombre, c.CodDeaf, c.Peso, c.UnidadLabel, c.InspectorNombre, c.InspectorSuplente, c.CorreoIfTitular, c.CorreoIfSuplente, c.CorreoAprobador, c.Activo, '
                          '(SELECT uc.RolContrato FROM UsuarioContrato uc WHERE uc.UsuarioId = ? AND uc.ContratoId = c.Id AND uc.Activo = 1) AS RolContrato '
                          'FROM Contrato c WHERE c.Id IN (' + _ASIGNADOS + ') ORDER BY c.Nombre',
     ('unidades', False): 'SELECT Id, ContratoId, Nombre, Peso, Activo FROM Unidad ORDER BY Nombre',
@@ -320,6 +320,8 @@ class Repositorio:
                 v.texto(datos.get('unidadLabel'), v.LIM['label']),
                 v.texto(datos.get('inspectorNombre'), v.LIM['inspector']),
                 v.texto(datos.get('inspectorSuplente'), v.LIM['inspector']),
+                v.correo(datos.get('correoIfTitular'), campo='correo del IF titular'),
+                v.correo(datos.get('correoIfSuplente'), campo='correo del IF suplente'),
                 v.correo(datos.get('correoAprobador'), campo='correo del aprobador'),
                 0 if datos.get('activo') is False else 1)
         cur = self._cursor(sesion)
@@ -328,17 +330,17 @@ class Repositorio:
             otro = cur.fetchone()
             if otro is not None and otro[0] != contrato_id:
                 raise v.ErrorValidacion('COD_DEAF: ya existe otro contrato con ese código')
-        cols_c = ['Nombre', 'CodDeaf', 'UnidadLabel', 'InspectorNombre', 'InspectorSuplente', 'CorreoAprobador', 'Activo']
+        cols_c = ['Nombre', 'CodDeaf', 'UnidadLabel', 'InspectorNombre', 'InspectorSuplente', 'CorreoIfTitular', 'CorreoIfSuplente', 'CorreoAprobador', 'Activo']
         antes = self._fila_actual(cur, 'Contrato', contrato_id, cols_c) if contrato_id is not None else None
         if contrato_id is None:
             contrato_id = _nuevo_id()
-            cur.execute('INSERT INTO Contrato (Nombre, CodDeaf, UnidadLabel, InspectorNombre, InspectorSuplente, CorreoAprobador, Activo, Id) '
-                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?)', fila + (contrato_id,))
+            cur.execute('INSERT INTO Contrato (Nombre, CodDeaf, UnidadLabel, InspectorNombre, InspectorSuplente, CorreoIfTitular, CorreoIfSuplente, CorreoAprobador, Activo, Id) '
+                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', fila + (contrato_id,))
         else:
             cur.execute('UPDATE Contrato SET Nombre = ?, CodDeaf = ?, UnidadLabel = ?, InspectorNombre = ?, InspectorSuplente = ?, '
-                        'CorreoAprobador = ?, Activo = ? WHERE Id = ?', fila + (v.ident(contrato_id, 'contrato'),))
+                        'CorreoIfTitular = ?, CorreoIfSuplente = ?, CorreoAprobador = ?, Activo = ? WHERE Id = ?', fila + (v.ident(contrato_id, 'contrato'),))
         self._auditar(cur, sesion, 'editar' if antes else 'crear', 'Contrato', contrato_id, contrato_id,
-                      self._cambios(antes, dict(zip(cols_c, fila)), list(zip(cols_c, ['Nombre', 'COD_DEAF', 'Unidades como', 'IF titular', 'IF suplente', 'Correo aprobador', 'Activo']))))
+                      self._cambios(antes, dict(zip(cols_c, fila)), list(zip(cols_c, ['Nombre', 'COD_DEAF', 'Unidades como', 'IF titular', 'IF suplente', 'Correo IF titular', 'Correo IF suplente', 'Correo aprobador', 'Activo']))))
         self.conn.commit()
         return contrato_id
 
@@ -359,13 +361,17 @@ class Repositorio:
             for campo, fn in (('codDeaf', lambda x: v.cod_deaf(x)),
                               ('nombre', lambda x: v.sin_formula(v.texto(x, v.LIM['nombre'], requerido=True, campo='nombre'), 'nombre')),
                               ('unidadLabel', lambda x: v.sin_formula(v.texto(x, v.LIM['label'], requerido=True, campo='tipo de unidad'), 'tipo de unidad')),
-                              ('inspectorNombre', lambda x: v.sin_formula(v.texto(x, v.LIM['inspector'], requerido=True, campo='IF titular'), 'IF titular')),
+                              ('inspectorNombre', lambda x: v.sin_formula(v.texto(x, v.LIM['inspector'], campo='IF titular'), 'IF titular')),
                               ('inspectorSuplente', lambda x: v.sin_formula(v.texto(x, v.LIM['inspector'], campo='IF suplente'), 'IF suplente')),
+                              ('correoIfTitular', lambda x: v.correo(x, campo='correo del IF titular')),
+                              ('correoIfSuplente', lambda x: v.correo(x, campo='correo del IF suplente')),
                               ('correoAprobador', lambda x: v.correo(x, requerido=True, campo='correo del aprobador'))):
                 try:
                     d[campo] = fn(f.get(campo) if isinstance(f, dict) else None)
                 except v.ErrorValidacion as e:
                     errores.append((n, str(e)))
+            if len(errores) == e0 and not d['inspectorNombre'] and not d['correoIfTitular']:
+                errores.append((n, 'indica el IF titular o su correo'))
             if len(errores) == e0:
                 clave = d['codDeaf'].upper()
                 if clave in vistos:
@@ -379,23 +385,23 @@ class Repositorio:
         r = {'creados': 0, 'actualizados': 0, 'iguales': 0}
         try:
             for n, d in limpias:
-                cur.execute('SELECT Id, Nombre, UnidadLabel, InspectorNombre, InspectorSuplente, CorreoAprobador FROM Contrato WHERE UPPER(CodDeaf) = UPPER(?)', (d['codDeaf'],))
+                cur.execute('SELECT Id, Nombre, UnidadLabel, InspectorNombre, InspectorSuplente, CorreoIfTitular, CorreoIfSuplente, CorreoAprobador FROM Contrato WHERE UPPER(CodDeaf) = UPPER(?)', (d['codDeaf'],))
                 filas_db = cur.fetchall()
                 if len(filas_db) > 1:
                     raise ErrorCarga([(n, 'COD_DEAF repetido en la base')])
-                nuevos = (d['nombre'], d['unidadLabel'], d['inspectorNombre'], d['inspectorSuplente'], d['correoAprobador'])
+                nuevos = (d['nombre'], d['unidadLabel'], d['inspectorNombre'], d['inspectorSuplente'], d['correoIfTitular'], d['correoIfSuplente'], d['correoAprobador'])
                 if not filas_db:
                     cid = _nuevo_id()
-                    cur.execute('INSERT INTO Contrato (Id, CodDeaf, Nombre, UnidadLabel, InspectorNombre, InspectorSuplente, CorreoAprobador) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                                (cid, d['codDeaf'], d['nombre'], d['unidadLabel'], d['inspectorNombre'], d['inspectorSuplente'], d['correoAprobador']))
+                    cur.execute('INSERT INTO Contrato (Id, CodDeaf, Nombre, UnidadLabel, InspectorNombre, InspectorSuplente, CorreoIfTitular, CorreoIfSuplente, CorreoAprobador) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                (cid, d['codDeaf'], d['nombre'], d['unidadLabel'], d['inspectorNombre'], d['inspectorSuplente'], d['correoIfTitular'], d['correoIfSuplente'], d['correoAprobador']))
                     r['creados'] += 1
                 elif tuple(filas_db[0][1:]) == nuevos:
                     r['iguales'] += 1
                     cid = filas_db[0][0]
                 else:
                     cid = filas_db[0][0]
-                    cur.execute('UPDATE Contrato SET Nombre = ?, UnidadLabel = ?, InspectorNombre = ?, InspectorSuplente = ?, CorreoAprobador = ? WHERE Id = ?',
-                                (d['nombre'], d['unidadLabel'], d['inspectorNombre'], d['inspectorSuplente'], d['correoAprobador'], cid))   # el COD_DEAF guardado no se toca
+                    cur.execute('UPDATE Contrato SET Nombre = ?, UnidadLabel = ?, InspectorNombre = ?, InspectorSuplente = ?, CorreoIfTitular = ?, CorreoIfSuplente = ?, CorreoAprobador = ? WHERE Id = ?',
+                                (d['nombre'], d['unidadLabel'], d['inspectorNombre'], d['inspectorSuplente'], d['correoIfTitular'], d['correoIfSuplente'], d['correoAprobador'], cid))   # el COD_DEAF guardado no se toca
                     r['actualizados'] += 1
             self._auditar(cur, sesion, 'importar', 'Contrato', None, None, f"{r['creados']} creados, {r['actualizados']} actualizados")
         except Exception:
@@ -425,6 +431,45 @@ class Repositorio:
                       self._cambios(antes_u, {'ContratoId': contrato_id, 'Nombre': nombre, 'Activo': activo}, [('ContratoId', 'Contrato'), ('Nombre', 'Nombre'), ('Activo', 'Activo')]))
         self.conn.commit()
         return unidad_id
+
+    def sincronizar_asignaciones_por_correo(self, sesion):
+        """Asigna a cada IF (perfil IF activo) los contratos activos donde aparece su correo como titular o suplente
+        (el correo de la persona es Usuario.Email; se compara sin distinguir mayúsculas). Si es titular y suplente del
+        mismo contrato, gana titular. No quita asignaciones existentes. Devuelve las asignaciones nuevas o cambiadas
+        y los correos de IF que no corresponden a ninguna persona."""
+        self._exigir(sesion, 'ADMIN')
+        cur = self._cursor(sesion)
+        cur.execute("SELECT u.Id, LOWER(u.Email) FROM Usuario u JOIN Permiso p ON p.UsuarioId = u.Id "
+                    "WHERE u.Activo = 1 AND p.Activo = 1 AND p.Rol = 'IF' AND u.Email IS NOT NULL AND u.Email <> ''")
+        por_correo = {fila[1]: fila[0] for fila in cur.fetchall()}
+        cur.execute('SELECT Id, CorreoIfTitular, CorreoIfSuplente FROM Contrato WHERE Activo = 1')
+        deseadas, sin_usuario = {}, {}
+        for cid, titular, suplente in cur.fetchall():
+            for correo, rol in ((titular, 'titular'), (suplente, 'suplente')):
+                correo = (correo or '').strip().lower()
+                if not correo or (rol == 'suplente' and correo == (titular or '').strip().lower()):
+                    continue
+                if correo in por_correo:
+                    deseadas[(por_correo[correo], cid)] = rol
+                else:
+                    sin_usuario.setdefault(correo, set()).add(cid)
+        nuevas = cambiadas = 0
+        try:
+            for (uid, cid), rol in deseadas.items():
+                cur.execute('SELECT RolContrato, Activo FROM UsuarioContrato WHERE UsuarioId = ? AND ContratoId = ?', (uid, cid))
+                previo = cur.fetchone()
+                if previo is None:
+                    cur.execute('INSERT INTO UsuarioContrato (UsuarioId, ContratoId, RolContrato) VALUES (?, ?, ?)', (uid, cid, rol))
+                    nuevas += 1
+                elif previo[0] != rol or not previo[1]:
+                    cur.execute('UPDATE UsuarioContrato SET RolContrato = ?, Activo = 1 WHERE UsuarioId = ? AND ContratoId = ?', (rol, uid, cid))
+                    cambiadas += 1
+            self._auditar(cur, sesion, 'asignar_por_correo', 'Permiso', None, None, f'{nuevas} nuevas, {cambiadas} cambiadas')
+        except Exception:
+            self.conn.rollback()
+            raise
+        self.conn.commit()
+        return {'nuevas': nuevas, 'cambiadas': cambiadas, 'sin_usuario': {k: sorted(v_) for k, v_ in sorted(sin_usuario.items())}}
 
     def importar_unidades(self, sesion, filas):
         """Carga masiva de subsectores: filas = dicts con codDeaf (del contrato), nombre y activo (bool).

@@ -36,7 +36,9 @@ CREATE TABLE IF NOT EXISTS Contrato (
   InspectorNombre TEXT NOT NULL DEFAULT '' CHECK (length(InspectorNombre) <= 150),                 -- IF titular (referencial)
   InspectorSuplente TEXT NOT NULL DEFAULT '' CHECK (length(InspectorSuplente) <= 150),             -- IF suplente (referencial)
   Peso            REAL NULL CHECK (Peso IS NULL OR (Peso >= 0 AND Peso <= 100)),                   -- % del contrato en el avance global
-  CorreoAprobador TEXT NOT NULL DEFAULT '' CHECK (length(CorreoAprobador) <= 254),     -- a esta dirección se abre el aviso (mailto:)
+  CorreoAprobador TEXT NOT NULL DEFAULT '' CHECK (length(CorreoAprobador) <= 254),
+  CorreoIfTitular TEXT NOT NULL DEFAULT '' CHECK (length(CorreoIfTitular) <= 254),                 -- con estos correos se asignan los contratos a los IF
+  CorreoIfSuplente TEXT NOT NULL DEFAULT '' CHECK (length(CorreoIfSuplente) <= 254),     -- a esta dirección se abre el aviso (mailto:)
   Activo          INTEGER NOT NULL DEFAULT 1 CHECK (Activo IN (0, 1)),
   CreadoEn        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );

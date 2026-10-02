@@ -46,6 +46,8 @@ CREATE TABLE bitacora.Contrato (
   InspectorNombre NVARCHAR(150) NOT NULL DEFAULT N'',   -- IF titular (referencial)
   InspectorSuplente NVARCHAR(150) NOT NULL DEFAULT N'', -- IF suplente (referencial)
   CorreoAprobador NVARCHAR(254) NOT NULL DEFAULT N'',   -- a esta dirección se abre el aviso (mailto:)
+  CorreoIfTitular NVARCHAR(254) NOT NULL DEFAULT N'',   -- con estos correos se asignan los contratos a los IF
+  CorreoIfSuplente NVARCHAR(254) NOT NULL DEFAULT N'',
   Activo          BIT           NOT NULL DEFAULT 1,
   CreadoEn        DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
 );

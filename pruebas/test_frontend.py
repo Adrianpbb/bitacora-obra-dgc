@@ -205,6 +205,17 @@ def tab(page, nombre):
     page.wait_for_timeout(250)
 
 
+def asignar_contratos(page, uid, mapa):
+    """Abre la ventana de contratos de una persona, marca los indicados {contratoId: rol} y aplica."""
+    page.click(f'#permTabla tr[data-uid={uid}] .js-perm-contratos')
+    page.wait_for_selector('#mcLista')
+    for cid, rol in mapa.items():
+        page.check(f'#mcLista .mc-chk[data-cid={cid}]')
+        if rol:
+            page.select_option(f'#mcLista .mc-rol[data-cid={cid}]', rol)
+    page.click('#modalBody .js-mc-aplicar')
+
+
 def escenario_if(p):
     print('\nA. Inspector Fiscal (Colaborador, contrato c1)')
     seed = base()
@@ -638,8 +649,7 @@ def escenario_admin(p):
         n = len(escrituras(page))
         page.click('#permTabla tr[data-uid=u_if2] .js-guardar-perm')
         check('Perfil IF sin contratos no se guarda', 'al menos un contrato' in toast(page) and len(escrituras(page)) == n)
-        page.click('#permTabla tr[data-uid=u_if2] .perm-chip[data-cid=c2]')
-        page.select_option('#permTabla tr[data-uid=u_if2] .f-rolctr[data-cid=c2]', 'suplente')
+        asignar_contratos(page, 'u_if2', {'c2': 'suplente'})
         page.fill('#permTabla tr[data-uid=u_if2] .f-correo', 'correo-malo')
         page.click('#permTabla tr[data-uid=u_if2] .js-guardar-perm')
         check('Un correo con formato inválido no se guarda', 'formato' in toast(page) and len(escrituras(page)) == n)
@@ -673,6 +683,7 @@ def escenario_cargas_admin(p):
     tmpd = AQUI / '_tmp_cargas'
     tmpd.mkdir(exist_ok=True)
     CAB = ['COD_DEAF', 'NOMBRE_CONTRATO', 'TIPO_UNIDAD', 'IF_TITULAR', 'IF_SUPLENTE', 'CORREO_APROBADOR']
+    CAB_PLANTILLA = ['COD_DEAF', 'NOMBRE_CONTRATO', 'TIPO_UNIDAD', 'IF_TITULAR', 'CORREO_IF_TITULAR', 'IF_SUPLENTE', 'CORREO_IF_SUPLENTE', 'CORREO_APROBADOR']
 
     def xlsx(nombre, filas, cab=CAB):
         wb = openpyxl.Workbook()
@@ -695,11 +706,11 @@ def escenario_cargas_admin(p):
         ruta = tmpd / 'plantilla.xlsx'
         dl.value.save_as(ruta)
         wb = openpyxl.load_workbook(ruta)
-        check('Plantilla .xlsx de contratos: abre en un lector externo con las 6 columnas', wb.sheetnames == ['Contratos', 'Instrucciones'] and [c.value for c in wb['Contratos'][1]] == CAB, wb.sheetnames)
+        check('Plantilla .xlsx de contratos: abre en un lector externo con sus 8 columnas (incluye los correos del IF)', wb.sheetnames == ['Contratos', 'Instrucciones'] and [c.value for c in wb['Contratos'][1]] == CAB_PLANTILLA, wb.sheetnames)
         with page.expect_download() as dl:
             page.click('.js-plantilla[data-tipo=contratos][data-formato=csv]')
         csv_txt = dl.value.path().read_bytes().decode('utf-8-sig')
-        check('Plantilla .csv con las mismas columnas', csv_txt.strip().split(';') == CAB, csv_txt)
+        check('Plantilla .csv con las mismas columnas', csv_txt.strip().split(';') == CAB_PLANTILLA, csv_txt)
         page.set_input_files('#impContratosFile', str(ruta))
         page.wait_for_selector('#impContratosBox .sol-rechazo')
         check('Subir la plantilla vacía avisa que no hay filas', 'no tiene filas con datos' in page.inner_text('#impContratosBox'), page.inner_text('#impContratosBox'))
@@ -772,6 +783,27 @@ def escenario_cargas_admin(p):
         check('CSV: reconoce separador ";", comillas, BOM y columnas en otro orden/nombre', 'Contrato "Norte"; con punto y coma' in box and '1 nuevo' in box and 'errores' not in box, box[:300])
         page.click('#impContratosBox .js-imp-no')
 
+        # --- carga con base en correos electrónicos del IF ---
+        malo_c = xlsx('correos_malo.xlsx', [
+            ['DEAF-030', 'Con correos IF', 'Sector', '', 'if.t@example.org', '', 'if.s@example.org', 'ap@example.org'],
+            ['DEAF-031', 'Sin IF', 'Sector', '', '', '', '', 'ap@example.org'],
+            ['DEAF-032', 'Correo IF malo', 'Sector', 'IF', 'malo', '', '', 'ap@example.org'],
+        ], cab=CAB_PLANTILLA)
+        page.set_input_files('#impContratosFile', str(malo_c))
+        page.wait_for_selector('#impContratosBox table')
+        box = page.inner_text('#impContratosBox')
+        check('Con correos del IF: pide al menos el nombre o el correo del titular y valida los correos',
+              '2 filas con errores' in box and 'Indica IF_TITULAR o CORREO_IF_TITULAR' in box and 'CORREO_IF_TITULAR no es un correo válido' in box, box[:400])
+        ok_c = xlsx('correos_ok.xlsx', [['DEAF-030', 'Con correos IF', 'Sector', '', 'IF.T@example.org', '', 'if.s@example.org', 'ap@example.org']], cab=CAB_PLANTILLA)
+        page.set_input_files('#impContratosFile', str(ok_c))
+        page.wait_for_selector('#impContratosBox table')
+        check('Un contrato identificado solo por correos del IF es válido', '1 nuevo' in page.inner_text('#impContratosBox') and 'errores' not in page.inner_text('#impContratosBox'))
+        n = len(escrituras(page))
+        page.click('#impContratosBox .js-imp-ok')
+        nuevas = esperar(page, 'contratos/', n)
+        dc = next(w['data'] for w in nuevas if w['data'].get('codDeaf') == 'DEAF-030')
+        check('Se guardan los correos del IF titular y suplente', dc['correoIfTitular'] == 'IF.T@example.org' and dc['correoIfSuplente'] == 'if.s@example.org' and dc['inspectorNombre'] == '', dc)
+
         # --- archivos inválidos ---
         txt = tmpd / 'x.txt'; txt.write_text('hola')
         page.set_input_files('#impContratosFile', str(txt))
@@ -791,7 +823,7 @@ def escenario_cargas_admin(p):
         check('Faltan columnas obligatorias: lo indica', 'TIPO_UNIDAD' in page.inner_text('#impContratosBox') and 'CORREO_APROBADOR' in page.inner_text('#impContratosBox'))
 
         # --- subsectores: vista por contrato ---
-        check('Subsectores agrupados por contrato (uno por contrato)', page.locator('#cfUnidades details.uc').count() == 4)
+        check('Subsectores agrupados por contrato (uno por contrato)', page.locator('#cfUnidades details.uc').count() == 5)
         c1 = '#cfUnidades details.uc[data-cid=c1]'
         check('Cada subsector es editable en su fila', page.locator(c1 + ' tr[data-id=u1] .f-nombre').count() == 1 and page.locator(c1 + ' tr[data-id=u1] .f-activo').count() == 1)
         n = len(escrituras(page))
@@ -942,7 +974,7 @@ def escenario_registro(p):
         page.click('#permBuscar'); page.fill('#permBuscar', 'Ana')
         page.wait_for_selector('#permResultados .js-elegir[data-uid=u_if2]'); page.click('#permResultados .js-elegir[data-uid=u_if2]')
         page.wait_for_selector('#permTabla tr[data-uid=u_if2]')
-        page.click('#permTabla tr[data-uid=u_if2] .perm-chip[data-cid=c1]')
+        asignar_contratos(page, 'u_if2', {'c1': 'titular'})
         page.click('#permTabla tr[data-uid=u_if2] .js-guardar-perm')
         page.wait_for_function('() => window.__T.writes.filter(w => w.path.includes("/cambios/")).length >= 4', timeout=8000)
 
@@ -988,6 +1020,82 @@ def escenario_registro(p):
         page.wait_for_function("document.querySelectorAll('#rgBody .vbadge.warn').length === 1", timeout=8000)
         check('Una fila alterada después de registrada se marca "⚠ alterado"', '⚠ alterado' in page.inner_text('#rgBody') and page.locator('#rgBody tr').count() == 4, page.inner_text('#rgBody')[:200])
         check('Una anotación a nombre de otra cuenta no se muestra', 'u_otro' not in page.inner_text('#rgBody') and page.locator('#rgBody tr').count() == 4)
+        check('Sin errores de JavaScript', not errores, errores)
+    finally:
+        browser.close()
+
+
+def escenario_permisos_masivo(p):
+    print('\nD5. Gestión de permisos con muchos contratos (82) y asignación por correo')
+    seed = base()
+    for i in range(1, 83):
+        zona = 'Norte' if i % 3 == 0 else ('Sur' if i % 3 == 1 else 'Centro')
+        seed[f'contratos/k{i:03d}'] = {'nombre': f'Hospital {zona} {i:03d}', 'codDeaf': f'K{i:03d}', 'unidadLabel': 'Sector', 'inspectorNombre': 'IF'}
+    seed['contratos/k001']['correoIfTitular'] = 'ines@example.org'
+    seed['contratos/k002']['correoIfSuplente'] = 'ines@example.org'
+    seed['contratos/k003']['correoIfTitular'] = 'ines@example.org'
+    seed['contratos/k003']['correoIfSuplente'] = 'ines@example.org'      # misma persona: gana titular
+    seed['contratos/k004']['correoIfTitular'] = 'nadie@example.org'
+    seed['contratos/k005']['correoIfTitular'] = 'nadie@example.org'
+    seed['permisos/u_if2'] = {'rol': 'if', 'contratos': ['c1'], 'rolesContrato': {'c1': 'titular'}, 'correo': 'INES@example.org', 'activo': True}
+    browser, page, errores = abrir(p, {'uid': 'u_admin', 'name': 'Admin Central', 'level': 'admin', 'seed': seed})
+    try:
+        ingresar(page)
+        tab(page, 'permisos')
+        fila = '#permTabla tr[data-uid=u_if2]'
+        page.wait_for_selector(fila)
+        check('Cada persona muestra un resumen compacto, no 84 botones', page.locator('#permTabla .perm-chip').count() == 0 and '1 contrato' in page.inner_text(fila) and page.locator(fila + ' .js-perm-contratos').count() == 1, page.inner_text(fila)[:200])
+        page.click(fila + ' .js-perm-contratos')
+        page.wait_for_selector('#mcLista')
+        check('La ventana lista los contratos activos (84) con un contador', page.locator('#mcLista .mc-fila').count() == 84 and '1 seleccionado de 84' in page.inner_text('#mcCuenta'), page.inner_text('#mcCuenta'))
+        page.fill('#mcQ', 'k017')
+        check('Buscar por COD_DEAF deja solo ese contrato', page.locator('#mcLista .mc-fila').count() == 1 and 'Hospital Centro 017' in page.inner_text('#mcLista'), page.inner_text('#mcLista')[:100])
+        page.fill('#mcQ', 'hospital norte')
+        n_norte = page.locator('#mcLista .mc-fila').count()
+        check('Buscar por nombre filtra (27 hospitales "Norte")', n_norte == 27, n_norte)
+        page.click('#modalBody .js-mc-marcar')
+        check('"Marcar los visibles" marca los 27 de una vez', '28 seleccionados de 84' in page.inner_text('#mcCuenta'), page.inner_text('#mcCuenta'))
+        page.fill('#mcQ', '')
+        page.click('#modalBody .mc-filtro[data-f=sin]')
+        check('Filtro "Sin asignar" no muestra los ya marcados (quedan 84 − 28 = 56)', page.locator('#mcLista .mc-fila').count() == 56 and page.locator('#mcLista .mc-chk:checked').count() == 0, page.locator('#mcLista .mc-fila').count())
+        page.click('#modalBody .mc-filtro[data-f=asignados]')
+        check('Filtro "Asignados" muestra solo los marcados (28)', page.locator('#mcLista .mc-fila').count() == 28)
+        page.click('#modalBody .js-mc-quitar')
+        check('"Quitar los visibles" desmarca los visibles', '0 seleccionados' in page.inner_text('#mcCuenta'), page.inner_text('#mcCuenta'))
+        page.click('#modalBody .mc-filtro[data-f=todos]')
+        page.check('#mcLista .mc-chk[data-cid=k010]')
+        page.check('#mcLista .mc-chk[data-cid=k011]')
+        page.select_option('#mcLista .mc-rol[data-cid=k011]', 'suplente')
+        check('El primer contrato marcado queda como titular y el rol se puede cambiar', page.input_value('#mcLista .mc-rol[data-cid=k010]') == 'titular' and page.input_value('#mcLista .mc-rol[data-cid=k011]') == 'suplente')
+        n = len(escrituras(page))
+        page.click('#modalBody .js-mc-aplicar')
+        check('Aplicar solo cambia la fila (borrador) y no escribe', len(escrituras(page)) == n and '2 contratos' in page.inner_text(fila), page.inner_text(fila)[:160])
+        page.click(fila + ' .js-guardar-perm')
+        nuevas = esperar(page, 'permisos/u_if2', n)
+        dd = nuevas[-1]['data']
+        check('Se guarda con los contratos elegidos y su rol', sorted(dd['contratos']) == ['k010', 'k011'] and dd['rolesContrato']['k011'] == 'suplente', dd)
+
+        # --- asignación por correo ---
+        page.click('#btnAsigCorreo')
+        page.wait_for_selector('#asigCorreoBox table')
+        box = page.inner_text('#asigCorreoBox')
+        check('Asignar por correo: calcula a quién y qué se agregaría (sin distinguir mayúsculas del correo)', 'ines@example.org'.lower() in box.lower() and 'K001 (titular)' in box and 'K002 (suplente)' in box and 'K003 (titular)' in box and 'K003 (suplente)' not in box, box[:400])
+        check('Avisa de los correos de IF que no tienen persona asignada', 'nadie@example.org (2 contratos)' in box, box[-300:])
+        n = len(escrituras(page))
+        page.click('#asigCorreoBox .js-asig-no')
+        check('Cancelar no escribe nada', len(escrituras(page)) == n and page.inner_text('#asigCorreoBox').strip() == '')
+        page.click('#btnAsigCorreo')
+        page.wait_for_selector('#asigCorreoBox .js-asig-ok')
+        page.click('#asigCorreoBox .js-asig-ok')
+        nuevas = esperar(page, 'permisos/u_if2', n)
+        dd = nuevas[-1]['data']
+        check('Al aplicar se suman los contratos por correo conservando los que ya tenía', sorted(dd['contratos']) == ['k001', 'k002', 'k003', 'k010', 'k011'] and dd['rolesContrato']['k001'] == 'titular' and dd['rolesContrato']['k002'] == 'suplente' and dd['rolesContrato']['k003'] == 'titular' and dd['rolesContrato']['k011'] == 'suplente', dd)
+        lg = [w['data'] for w in escrituras(page) if es_log(w) and w['data']['entidad'] == 'permiso']
+        check('Y queda anotado en el Registro de cambios', len(lg) >= 2 and 'Contratos' in [c['c'] for c in lg[-1]['cambios']], lg[-1:] )
+        page.click('#btnAsigCorreo')
+        page.wait_for_selector('#asigCorreoBox')
+        page.wait_for_timeout(300)
+        check('Repetirlo ya no propone cambios', 'No hay asignaciones nuevas' in page.inner_text('#asigCorreoBox'), page.inner_text('#asigCorreoBox')[:200])
         check('Sin errores de JavaScript', not errores, errores)
     finally:
         browser.close()
@@ -1102,6 +1210,7 @@ if __name__ == '__main__':
         escenario_cargas_admin(p)
         escenario_pesos(p)
         escenario_registro(p)
+        escenario_permisos_masivo(p)
         escenario_sin_perfil(p)
         escenario_local(p)
         escenario_entregable(p)

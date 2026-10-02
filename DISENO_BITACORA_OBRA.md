@@ -568,3 +568,24 @@ Decisiones tomadas con él: **jerarquía contrato → sectores/subsectores** (la
   contrato vuelva al promedio simple hasta que se vuelvan a cuadrar los pesos; (d) "sin reporte = no cuenta" puede subestimar o sobrestimar el
   avance si hay unidades pesadas sin primer reporte (la alternativa es contarlas como 0%).
 
+### 11.8 Ampliaciones v10.9 – v10.12 (2026-10-02)
+
+Nuevas ideas del dueño del proyecto, trabajadas con commit por bloque y registradas en `CHANGELOG.md` (archivo nuevo, se actualiza en cada commit).
+
+- **Registro de cambios auditable (v10.9).** Pestaña del administrador. Cada modificación de datos queda anotada en `audit/<cuenta>/cambios/<id>`
+  (ruta que solo puede escribir la propia cuenta; igual que los recibos) con: hora, id del autor (nunca nombre), perfil, acción, entidad, contrato, detalle,
+  el **antes → después** de cada campo y una **huella SHA-256** del contenido. La vista permite filtrar (qué, quién, texto, fechas), exportar a CSV (neutraliza `= + - @`)
+  y marca "⚠ alterado" cualquier fila cuyo contenido ya no coincide con su huella; una anotación escrita a nombre de otra cuenta no se muestra.
+  Se anota *después* de guardar el cambio; si el registro falla se avisa. Backend: la tabla `Auditoria` (solo anexar, fecha de la base) guarda antes → después
+  en contratos, subsectores, hitos y permisos, y `listar_auditoria` (solo ADMIN) la expone con filtros.
+  Límites: el artifact no puede impedir que una cuenta borre sus propias anotaciones (la plataforma no lo permite); el backend sí (triggers).
+  La huella detecta ediciones, no borrados; el backend (`Auditoria`) sí es de solo anexar.
+- **Ficha de problemáticas (v10.10).** "Actores relevantes" (antes Stakeholders; el campo guardado sigue llamándose `stakeholders`). Checklist con "+ Agregar acción" (una por línea,
+  numeradas, quitables). Botón **Editar** para el autor o una jefatura del contrato: deja `edicion {autorId, ts}`, una nota automática en la bitácora, un recibo
+  con huella (`problematica-<id>-editar`; la verificación de autoría usa ese recibo si la ficha fue editada) y la anotación en el Registro de cambios.
+- **Dashboard (v10.11).** Semáforo a la izquierda y las tres cifras como tarjetas compactas a la derecha. Gantt y línea base de hitos muestran el peso de cada sector.
+  *Duda pendiente*: no quedó claro si "agregar los pesos para los sectores" en Hitos pedía algo más que mostrarlos (el peso se edita en Configuración → Unidades y subsectores).
+- **Permisos y correos (v10.12).** Ver `CHANGELOG.md` v10.12. Decisión: la asignación por correo es **explícita** (botón con vista previa), no automática al ingresar, para que cada
+  cambio de acceso quede auditado y no dependa de que el correo de la cuenta coincida. El correo de la persona lo escribe el administrador (o lo trae el directorio).
+  Pendiente: cargar *personas* por Excel (hoy se agregan una a una desde el directorio, porque `permisos/<uid>` se identifica por la cuenta, no por el correo).
+
