@@ -12,13 +12,14 @@ Ejecutar:  python test_frontend.py
 import datetime as dt
 import hashlib
 import json
+import os
 import pathlib
 import sys
 
 from playwright.sync_api import sync_playwright
 
 AQUI = pathlib.Path(__file__).resolve().parent
-CHROME = r'C:\Program Files\Google\Chrome\Application\chrome.exe'
+CHROME = os.environ.get('CHROME') or (r'C:\Program Files\Google\Chrome\Application\chrome.exe' if os.name == 'nt' else '/opt/pw-browsers/chromium-1194/chrome-linux/chrome')
 PAGINA = (AQUI.parent / 'frontend' / 'bitacora-obra.html').read_text(encoding='utf-8')
 XSS = '<img src=x onerror="window.__T.xss++">'
 HOY = dt.date.today()
@@ -271,6 +272,17 @@ def escenario_if(p):
         check('Ninguna carga XSS se ejecutó en ninguna vista', page.evaluate('window.__T.xss') == 0, page.evaluate('window.__T.xss'))
         check('Ningún dato de otro contrato llega a la página', 'SECRETO' not in page.evaluate('document.body.innerHTML'))
         check('El IF no ve insignias de verificación', page.locator('.vbadge').count() == 0)
+        page.set_viewport_size({'width': 1920, 'height': 900})
+        page.wait_for_timeout(200)
+        ancho = page.evaluate("document.querySelector('.content-wrap').getBoundingClientRect().width")
+        logo = page.evaluate("document.querySelector('.appbar-logo').getBoundingClientRect().height")
+        check('Pantalla ancha: el contenido crece más allá de 1.180 px (máx. 1.600)', 1180 < ancho <= 1600, ancho)
+        check('Logo del banner grande y legible (>= 60 px)', logo >= 60, logo)
+        check('Banner y contenido usan el mismo ancho', page.evaluate("document.querySelector('.appbar-inner').getBoundingClientRect().width") == ancho)
+        page.set_viewport_size({'width': 390, 'height': 800})
+        page.wait_for_timeout(200)
+        check('Ancho de teléfono: sin scroll horizontal de la página', page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), page.evaluate('document.documentElement.scrollWidth'))
+        page.set_viewport_size({'width': 1280, 'height': 900})
         check('Sin errores de JavaScript', not errores, errores)
     finally:
         browser.close()

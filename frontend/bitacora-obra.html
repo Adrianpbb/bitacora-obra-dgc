@@ -12,7 +12,7 @@
     --warn:#9A6400; --warn-soft:#FAEFD6;
     --bad:#B4372A; --bad-soft:#FAE3DF;
     --muted:#7D8A9C; --muted-soft:#EAEFF4;
-    --radius:12px;
+    --radius:12px; --ancho:1600px; --gutter:32px;
     --shadow: 0 1px 2px rgba(14,27,46,.06), 0 6px 18px rgba(14,27,46,.06);
     --shadow-hover: 0 2px 6px rgba(14,27,46,.10), 0 14px 32px rgba(14,27,46,.12);
     color-scheme: light;
@@ -65,31 +65,44 @@
 
   /* ---------- barra superior ---------- */
   .appbar{ background:linear-gradient(180deg, var(--navy), var(--navy-2)); color:#EDF1F7; position:sticky; top:0; z-index:20; box-shadow:0 2px 10px rgba(0,0,0,.18); }
-  .appbar-inner{ max-width:1180px; margin-inline:auto; padding:14px 20px 0; }
-  .appbar-top{ display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; padding-bottom:12px; }
-  .appbar-brand{ display:flex; gap:14px; align-items:center; min-width:0; }
-  .appbar-logo{ height:44px; width:auto; display:block; flex:none; }
-  .appbar-sep{ width:1px; height:34px; background:rgba(255,255,255,.22); flex:none; }
-  .appbar-title{ font-size:17px; font-weight:700; letter-spacing:-.01em; }
-  .appbar-crumb{ font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:rgba(237,241,247,.6); margin-top:2px; }
-  .appbar-side{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .appbar-who{ font-size:12px; color:rgba(237,241,247,.78); text-align:right; line-height:1.35; }
+  .appbar-inner{ max-width:var(--ancho); margin-inline:auto; padding:22px var(--gutter) 0; }
+  .appbar-top{ display:flex; justify-content:space-between; align-items:center; gap:20px 32px; flex-wrap:wrap; padding-bottom:20px; }
+  .appbar-brand{ display:flex; gap:22px; align-items:center; min-width:0; }
+  .appbar-logo{ height:64px; width:auto; display:block; flex:none; }
+  .appbar-sep{ width:1px; height:48px; background:rgba(255,255,255,.25); flex:none; }
+  .appbar-title{ font-size:22px; font-weight:700; letter-spacing:-.01em; line-height:1.15; }
+  .appbar-crumb{ font-size:11.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:rgba(237,241,247,.62); margin-top:5px; }
+  .appbar-side{ display:flex; align-items:center; justify-content:flex-end; gap:12px 16px; flex-wrap:wrap; margin-left:auto; }
+  .appbar-acciones{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .appbar-who{ font-size:12.5px; color:rgba(237,241,247,.78); text-align:right; line-height:1.4; padding-right:4px; }
   .appbar-who strong{ color:#fff; }
-  .vercomo{ display:flex; align-items:center; gap:6px; font-size:11.5px; color:rgba(237,241,247,.75); }
-  .vercomo select{ width:auto; background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.25); border-radius:7px; padding:5px 8px; font-size:12px; }
+  .vercomo{ display:flex; align-items:center; gap:8px; font-size:12px; color:rgba(237,241,247,.75); }
+  .vercomo select{ width:auto; background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.25); border-radius:7px; padding:7px 10px; font-size:12.5px; }
   .vercomo select option{ color:#0E1B2E; }
-  .btn-ghost-dark{ font:inherit; font-weight:600; font-size:12px; padding:6px 12px; border-radius:7px; background:rgba(255,255,255,.08); color:#EDF1F7; border:1px solid rgba(255,255,255,.2); cursor:pointer; }
+  .btn-ghost-dark{ font:inherit; font-weight:600; font-size:12.5px; padding:8px 14px; border-radius:7px; background:rgba(255,255,255,.08); color:#EDF1F7; border:1px solid rgba(255,255,255,.2); cursor:pointer; }
   .btn-ghost-dark:hover{ background:rgba(255,255,255,.16); }
-  .tabsd{ display:flex; gap:2px; overflow-x:auto; scrollbar-width:none; }
-  .tabd{ font:inherit; font-size:13px; font-weight:600; color:rgba(237,241,247,.7); background:none; border:none; padding:10px 16px; border-radius:10px 10px 0 0; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:7px; transition:background .15s, color .15s; }
+  .tabsd{ display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; padding-top:4px; border-top:1px solid rgba(255,255,255,.1); }
+  .tabd{ font:inherit; font-size:13.5px; font-weight:600; color:rgba(237,241,247,.7); background:none; border:none; padding:13px 20px; border-radius:10px 10px 0 0; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:7px; transition:background .15s, color .15s; }
   .tabd:hover{ color:#fff; background:rgba(255,255,255,.06); }
   .tabd.active{ background:var(--bg); color:var(--ink); }
   .tab-badge{ background:var(--bad); color:#fff; border-radius:999px; font-size:10.5px; font-weight:700; padding:1px 7px; }
-  .banner{ max-width:1180px; margin:14px auto 0; padding:0 20px; }
+  .banner{ max-width:var(--ancho); margin:16px auto 0; padding:0 var(--gutter); }
   .banner > div{ background:var(--warn-soft); color:var(--ink); border:1px solid var(--line); border-left:4px solid var(--warn); border-radius:10px; padding:10px 14px; font-size:12.5px; line-height:1.5; }
   .banner.demo > div{ background:var(--accent-soft); border-left-color:var(--accent); }
 
-  .content-wrap{ max-width:1180px; margin-inline:auto; padding:20px 20px 64px; }
+  .content-wrap{ max-width:var(--ancho); margin-inline:auto; padding:28px var(--gutter) 72px; }
+  @media (max-width:720px){
+    :root{ --gutter:16px; }
+    .appbar-inner{ padding-top:14px; }
+    .appbar-top{ padding-bottom:12px; gap:12px; }
+    .appbar-brand{ gap:12px; }
+    .appbar-logo{ height:44px; }
+    .appbar-sep{ height:34px; }
+    .appbar-title{ font-size:18px; }
+    .appbar-side{ justify-content:flex-start; margin-left:0; width:100%; }
+    .appbar-who{ text-align:left; }
+    .tabd{ padding:11px 14px; }
+  }
   .panel{ display:none; }
   .panel.active{ display:block; animation:panelIn .22s ease; }
   @keyframes panelIn{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
@@ -118,8 +131,7 @@
   .vbadge.muted{ background:var(--muted-soft); color:var(--muted); }
 
   /* ---------- tarjetas de contrato ---------- */
-  .ccards{ display:grid; grid-template-columns:repeat(auto-fill, minmax(360px,1fr)); gap:14px; align-items:start; }
-  @media (max-width:420px){ .ccards{ grid-template-columns:1fr; } }
+  .ccards{ display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap:18px; align-items:start; }
   .ccard{ background:var(--surface); border:1px solid var(--line); border-top:4px solid var(--muted); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px 18px; display:flex; flex-direction:column; gap:12px; transition:box-shadow .2s, transform .2s; }
   .ccard:hover{ box-shadow:var(--shadow-hover); transform:translateY(-2px); }
   .ccard.sem-good{ border-top-color:var(--good); } .ccard.sem-warn{ border-top-color:var(--warn); } .ccard.sem-bad{ border-top-color:var(--bad); }
@@ -330,8 +342,10 @@
             <select id="verComo" aria-label="Ver como perfil"></select>
           </label>
           <div class="appbar-who" id="whoami"></div>
-          <button class="btn-ghost-dark" id="btnRestablecer" type="button" hidden>Restablecer datos de ejemplo</button>
-          <button class="btn-ghost-dark" id="btnLogout" type="button">Cerrar sesión</button>
+          <div class="appbar-acciones">
+            <button class="btn-ghost-dark" id="btnRestablecer" type="button" hidden>Restablecer datos de ejemplo</button>
+            <button class="btn-ghost-dark" id="btnLogout" type="button">Cerrar sesión</button>
+          </div>
         </div>
       </div>
       <nav class="tabsd" id="tabsNav" aria-label="Secciones"></nav>
