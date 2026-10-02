@@ -10,6 +10,12 @@ Formato de cada entrada: versión · fecha · commit — qué cambió · pruebas
 
 ---
 
+## v10.13 · 2026-10-02 — Editar el checklist de problemáticas ya creadas
+- En el detalle de cada ficha hay **"✎ Editar checklist"**: cambiar el texto de una acción, marcarla como hecha, quitarla o agregar nuevas. Lo puede hacer **cualquier IF o jefatura del contrato** (igual que marcar tareas como hechas); antes solo el autor o la jefatura podían editar la ficha.
+- La edición completa de la ficha (título, descripción, etc.) sigue siendo del autor o la jefatura; en modo demo/local, donde una sola persona hace todos los papeles, se puede editar todo.
+- Cada cambio deja una nota en la bitácora de la ficha ("Checklist editado: de 1 a 2 acciones (1 hecha).") y una anotación en el Registro de cambios con el antes → después.
+- Pruebas: frontend 247/247 · backend 58/58.
+
 ## v10.12 · 2026-10-02 — Gestión de permisos para muchos contratos y cargas por correo
 - **Gestión de permisos sin botones sueltos**: cada persona muestra un resumen ("12 contratos · 1 titular · 11 suplente" + los primeros nombres) y el botón **"Editar contratos…"**, que abre una ventana con **búsqueda** por nombre o COD_DEAF, filtros *Todos / Asignados / Sin asignar*, **"Marcar los visibles"**, **"Quitar los visibles"**, **"Quitar todos"**, contador y selector Titular/Suplente por contrato. Probado con 82 contratos.
 - **Cargas con base en correos electrónicos**: el Excel/CSV de contratos acepta `CORREO_IF_TITULAR` y `CORREO_IF_SUPLENTE` (basta el nombre o el correo del titular). La tabla de Configuración también los muestra y edita.
