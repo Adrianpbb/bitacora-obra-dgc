@@ -401,6 +401,16 @@
   .sem-ley .dot{ flex:none; width:9px; height:9px; border-radius:50%; margin-top:4px; }
   .sem-ley .dot.bad{ background:var(--bad); } .sem-ley .dot.warn{ background:var(--warn); } .sem-ley .dot.good{ background:var(--good); }
 
+  /* ---------- checklist editable ---------- */
+  .tareas-lista{ list-style:none; margin:0 0 8px; padding:0; display:flex; flex-direction:column; gap:6px; counter-reset:t; }
+  .tarea-fila{ display:flex; gap:8px; align-items:center; counter-increment:t; }
+  .tarea-fila::before{ content:counter(t); flex:none; width:22px; height:22px; border-radius:50%; background:var(--accent-soft); color:var(--accent-ink); font-size:11.5px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .tarea-fila input[type="text"]{ flex:1; }
+  .tarea-fila .tarea-hecho{ flex:none; }
+  .tarea-add{ display:flex; gap:8px; flex-wrap:wrap; }
+  .tarea-add input{ flex:1; min-width:200px; }
+  .tareas-vacio{ font-size:12px; color:var(--ink-soft); margin:0 0 8px; }
+
   /* ---------- registro de cambios ---------- */
   .rg-filtros{ display:grid; grid-template-columns:2fr 1.3fr 1.3fr 1fr 1fr; gap:12px; margin-bottom:12px; }
   .rg-filtros .field{ margin:0; }
@@ -661,12 +671,16 @@
             <div class="row2">
               <div class="field"><label for="pbImpacto">Cómo afecta al contrato</label><textarea id="pbImpacto" maxlength="4000"></textarea></div>
               <div class="field">
-                <label for="pbStakeholdersInput">Stakeholders involucrados</label>
-                <div class="tag-input"><div id="pbStakeholdersChips" style="display:contents;"></div><input type="text" id="pbStakeholdersInput" maxlength="80" placeholder="Escribe y presiona Enter"></div>
+                <label for="pbActoresInput">Actores relevantes</label>
+                <div class="tag-input" data-tags="nuevo"><div class="tags-chips" style="display:contents;"></div><input type="text" class="tags-in" id="pbActoresInput" maxlength="80" placeholder="Escribe un actor y presiona Enter (ej.: Municipalidad)"></div>
               </div>
             </div>
             <div class="row2">
-              <div class="field"><label for="pbAccion">Qué se necesita para subsanar (una tarea por línea)</label><textarea id="pbAccion" maxlength="9000"></textarea></div>
+              <div class="field">
+                <label for="pbTareaInput">Checklist: acciones para subsanar</label>
+                <p class="helper" style="margin:0 0 6px;">Agrega una a una las acciones que hay que cumplir. Después las marcas como hechas en la tarjeta.</p>
+                <div class="tareas-ed" data-tareas="nuevo"><ol class="tareas-lista"></ol><div class="tarea-add"><input type="text" class="tarea-in" id="pbTareaInput" maxlength="300" placeholder="Escribe una acción y presiona Enter o «Agregar»"><button type="button" class="btn secondary small js-tarea-add">+ Agregar acción</button></div></div>
+              </div>
               <div class="field"><label for="pbRiesgo">Nivel de riesgo</label><select id="pbRiesgo"><option value="Extremo">Extremo</option><option value="Alto">Alto</option><option value="Medio" selected>Medio</option><option value="Bajo">Bajo</option></select></div>
             </div>
             <div class="row2">
@@ -926,7 +940,7 @@
     var id = cleanId(d.id), x = docData(d), cid = cleanId(x.contratoId);
     if(!id || !cid) return null;
     var stake = Array.isArray(x.stakeholders) ? x.stakeholders : (typeof x.stakeholders === 'string' ? x.stakeholders.split(',') : []);
-    return { id:id, contratoId:cid, unidadId: cleanId(x.unidadId), titulo: cleanStr(x.titulo, LIM.titulo) || '(sin título)', descripcion: cleanStr(x.descripcion, LIM.texto, true), impacto: cleanStr(x.impacto, LIM.texto, true), stakeholders: cleanStrArr(stake, LIM.tags, LIM.tag), checklist: normChecklist(x.checklist), fechaVencimiento: cleanDate(x.fechaVencimiento), nivelRiesgo: cleanEnum(x.nivelRiesgo, RIESGO_KEYS), escalamiento: cleanStrArr(x.escalamiento, 4, 40, ESCALAMIENTOS), estado: cleanEnum(x.estado, PB_KEYS) || 'detectado', bitacora: normBitacora(x.bitacora), reportadoPor: cleanStr(x.reportadoPor, LIM.inspector), autorId: cleanId(x.autorId), fechaCreacion: cleanDate(x.fechaCreacion), fechaResuelta: cleanDate(x.fechaResuelta), resolucion: normResolucion(x.resolucion), resolucionesPrevias: (Array.isArray(x.resolucionesPrevias) ? x.resolucionesPrevias : []).map(normResolucion).filter(Boolean).slice(-LIM.previas), ts: cleanTs(typeof x.ts === 'number' ? x.ts : x.timestamp), isDeleted: x.isDeleted === true };
+    return { id:id, contratoId:cid, unidadId: cleanId(x.unidadId), titulo: cleanStr(x.titulo, LIM.titulo) || '(sin título)', descripcion: cleanStr(x.descripcion, LIM.texto, true), impacto: cleanStr(x.impacto, LIM.texto, true), stakeholders: cleanStrArr(stake, LIM.tags, LIM.tag), checklist: normChecklist(x.checklist), fechaVencimiento: cleanDate(x.fechaVencimiento), nivelRiesgo: cleanEnum(x.nivelRiesgo, RIESGO_KEYS), escalamiento: cleanStrArr(x.escalamiento, 4, 40, ESCALAMIENTOS), estado: cleanEnum(x.estado, PB_KEYS) || 'detectado', bitacora: normBitacora(x.bitacora), reportadoPor: cleanStr(x.reportadoPor, LIM.inspector), autorId: cleanId(x.autorId), fechaCreacion: cleanDate(x.fechaCreacion), fechaResuelta: cleanDate(x.fechaResuelta), edicion: (x.edicion && typeof x.edicion === 'object') ? { autorId: cleanId(x.edicion.autorId), ts: cleanTs(x.edicion.ts) } : null, resolucion: normResolucion(x.resolucion), resolucionesPrevias: (Array.isArray(x.resolucionesPrevias) ? x.resolucionesPrevias : []).map(normResolucion).filter(Boolean).slice(-LIM.previas), ts: cleanTs(typeof x.ts === 'number' ? x.ts : x.timestamp), isDeleted: x.isDeleted === true };
   }
 
   /* ---- fechas y formato ---- */
@@ -965,6 +979,7 @@
   function canonDecision(id, estado, comentario, revisorId, ts){ return JSON.stringify(['decision', id, estado, comentario, revisorId, ts]); }
   function canonProblematica(p){ return JSON.stringify(['problematica', p.contratoId, p.unidadId, p.titulo, p.descripcion, p.impacto, p.fechaCreacion, p.reportadoPor, p.autorId, p.ts]); }
   function canonRegistro(r){ return JSON.stringify(['cambio', r.ts, r.actorId, r.rol, r.accion, r.entidad, r.entidadId, r.contratoId, r.detalle, r.cambios, r.vistaPrevia]); }
+  function canonEdicion(p){ return JSON.stringify(['problematica-edicion', p.id, p.unidadId, p.titulo, p.descripcion, p.impacto, p.edicion ? p.edicion.ts : 0, p.edicion ? p.edicion.autorId : null]); }
   function canonNota(pid, n){ return JSON.stringify(['nota', pid, n.id, n.texto, n.autor, n.autorId, n.fecha, n.ts]); }
 
   /* =================================================================
@@ -1468,7 +1483,7 @@
       var p = {
         contratoId:cid, unidadId:unidadId, titulo:titulo, descripcion:descripcion,
         impacto: cleanStr(f.impacto, LIM.texto, true), stakeholders: cleanStrArr(f.stakeholders, LIM.tags, LIM.tag),
-        checklist: cleanStrArr(String(f.checklist || '').split('\n'), LIM.checklist, LIM.tarea).map(function(t){ return { texto:t, hecho:false }; }),
+        checklist: cleanStrArr(Array.isArray(f.checklist) ? f.checklist : String(f.checklist || '').split('\n'), LIM.checklist, LIM.tarea).map(function(t){ return { texto:t, hecho:false }; }),
         fechaVencimiento: cleanDate(f.fechaVencimiento), nivelRiesgo: cleanEnum(f.nivelRiesgo, RIESGO_KEYS),
         escalamiento: cleanStrArr(f.escalamiento, 4, 40, ESCALAMIENTOS), estado:'detectado', bitacora:[],
         reportadoPor:'', autorId:myUid, fechaCreacion: todayISO(), fechaResuelta:null, ts: Date.now(), isDeleted:false
@@ -1517,6 +1532,34 @@
       await escribirRecibo('problematica', p.id, 'nota', n.id, p.contratoId, await sha256Hex(canonNota(p.id, n)));
       var lista = [n].concat(p.bitacora.map(function(b){ return { id:b.id, texto:b.texto, autor:b.autor, autorId:b.autorId, fecha:b.fecha, ts:b.ts }; }));
       await db.doc('problematicas/' + p.id).update({ bitacora:lista });
+    },
+    editarProblematica: async function(p, f){
+      assertScope(p.contratoId);
+      if(p.autorId !== myUid && !esRevisor()) throw fail('Solo quien la creó o una jefatura puede editarla.');
+      var destino = String(f.destino || ''), unidadId = null;
+      if(destino.indexOf('contrato:') === 0){ if(cleanId(destino.slice(9)) !== p.contratoId) throw fail('No se puede pasar la problemática a otro contrato.'); }
+      else { var u = findIn(State.unidades, cleanId(destino)); if(!u || u.contratoId !== p.contratoId) throw fail('Elige una unidad de este contrato o el contrato completo.'); unidadId = u.id; }
+      var titulo = cleanStr(f.titulo, LIM.titulo); if(!titulo) throw fail('El título es obligatorio.');
+      var descripcion = cleanStr(f.descripcion, LIM.texto, true); if(!descripcion) throw fail('Describe el problema.');
+      if(f.fechaVencimiento && !cleanDate(f.fechaVencimiento)) throw fail('La fecha de vencimiento no es válida.');
+      var checklist = [];
+      (Array.isArray(f.checklist) ? f.checklist : []).forEach(function(t){ var tx = cleanStr(t && t.texto, LIM.tarea); if(tx && checklist.length < LIM.checklist) checklist.push({ texto:tx, hecho: t.hecho === true }); });
+      var nuevo = { unidadId:unidadId, titulo:titulo, descripcion:descripcion, impacto: cleanStr(f.impacto, LIM.texto, true), stakeholders: cleanStrArr(f.stakeholders, LIM.tags, LIM.tag),
+        checklist:checklist, fechaVencimiento: cleanDate(f.fechaVencimiento), nivelRiesgo: cleanEnum(f.nivelRiesgo, RIESGO_KEYS), escalamiento: cleanStrArr(f.escalamiento, 4, 40, ESCALAMIENTOS) };
+      var campos = [['unidadId', 'unidad'], ['titulo', 'título'], ['descripcion', 'descripción'], ['impacto', 'impacto'], ['stakeholders', 'actores relevantes'], ['checklist', 'checklist'], ['fechaVencimiento', 'vencimiento'], ['nivelRiesgo', 'riesgo'], ['escalamiento', 'ayuda requerida']];
+      var cambiados = campos.filter(function(c){ return JSON.stringify(nuevo[c[0]]) !== JSON.stringify(c[0] === 'checklist' ? p.checklist.map(function(t){ return { texto:t.texto, hecho:t.hecho }; }) : p[c[0]]); }).map(function(c){ return c[1]; });
+      if(!cambiados.length) throw fail('No hay cambios para guardar.');
+      var ahora = Date.now(), edicion = { autorId:myUid, ts:ahora };
+      var edit = Object.assign({}, p, nuevo, { edicion:edicion });
+      await escribirRecibo('problematica', p.id, 'editar', '', p.contratoId, await sha256Hex(canonEdicion(edit)));
+      var datos = Object.assign({}, nuevo, { edicion:edicion, ultimaEdicion:edicion });
+      if(p.bitacora.length < LIM.bitacora){
+        var n = { id: idAleatorio(), texto: 'Ficha editada: ' + cambiados.join(', ') + '.', autor:'', autorId:myUid, fecha: todayISO(), ts:ahora };
+        await escribirRecibo('problematica', p.id, 'nota', n.id, p.contratoId, await sha256Hex(canonNota(p.id, n)));
+        datos.bitacora = [n].concat(p.bitacora.map(function(b){ return { id:b.id, texto:b.texto, autor:b.autor, autorId:b.autorId, fecha:b.fecha, ts:b.ts }; }));
+      }
+      await db.doc('problematicas/' + p.id).update(datos);
+      return { cambiados:cambiados };
     },
     eliminarProblematica: async function(p){
       assertScope(p.contratoId);
@@ -1624,6 +1667,13 @@
     } },
     toggleTarea: { desc: function(a){ var p = a[0], t = p.checklist[a[1]]; return { accion:'tarea', entidad:'problematica', entidadId:p.id, contratoId:p.contratoId, detalle:p.titulo + ': «' + (t ? t.texto : '') + '» ' + (a[2] ? 'hecha' : 'pendiente') }; } },
     agregarNota: { desc: function(a){ return { accion:'nota', entidad:'problematica', entidadId:a[0].id, contratoId:a[0].contratoId, detalle:a[0].titulo + ': ' + recorte(a[1], 120) }; } },
+    editarProblematica: { desc: function(a, res){
+      var p = a[0], f = a[1], desp = { titulo: cleanStr(f.titulo, LIM.titulo), descripcion: recorte(f.descripcion, 200), impacto: recorte(f.impacto, 200), stakeholders: cleanStrArr(f.stakeholders, LIM.tags, LIM.tag),
+        checklist: (f.checklist || []).map(function(t){ return t.texto; }), fechaVencimiento: f.fechaVencimiento || '', nivelRiesgo: f.nivelRiesgo || '', escalamiento: f.escalamiento || [] };
+      var ant = { titulo:p.titulo, descripcion: recorte(p.descripcion, 200), impacto: recorte(p.impacto, 200), stakeholders:p.stakeholders, checklist: p.checklist.map(function(t){ return t.texto; }), fechaVencimiento:p.fechaVencimiento || '', nivelRiesgo:p.nivelRiesgo || '', escalamiento:p.escalamiento };
+      return { accion:'editar', entidad:'problematica', entidadId:p.id, contratoId:p.contratoId, detalle:'Ficha editada: ' + p.titulo + ' (' + res.cambiados.join(', ') + ')',
+        cambios: diffCampos(ant, desp, [['titulo', 'Título'], ['descripcion', 'Descripción'], ['impacto', 'Impacto'], ['stakeholders', 'Actores relevantes'], ['checklist', 'Checklist'], ['fechaVencimiento', 'Vencimiento'], ['nivelRiesgo', 'Riesgo'], ['escalamiento', 'Ayuda requerida']]) };
+    } },
     eliminarProblematica: { desc: function(a){ return { accion:'eliminar', entidad:'problematica', entidadId:a[0].id, contratoId:a[0].contratoId, detalle:'Problemática: ' + a[0].titulo }; } }
   };
   function instalarRegistro(){
@@ -2085,7 +2135,7 @@
     if(!puedeVerificar()) return;
     var ids = Object.create(null);
     State.solicitudes.forEach(function(s){ if(s.autorId) ids[s.autorId] = 1; });
-    State.problematicas.forEach(function(p){ if(p.autorId) ids[p.autorId] = 1; p.bitacora.forEach(function(n){ if(n.autorId) ids[n.autorId] = 1; }); });
+    State.problematicas.forEach(function(p){ if(p.autorId) ids[p.autorId] = 1; if(p.edicion && p.edicion.autorId) ids[p.edicion.autorId] = 1; p.bitacora.forEach(function(n){ if(n.autorId) ids[n.autorId] = 1; }); });
     Object.keys(ids).slice(0, 40).forEach(function(uid){
       if(auditSubs[uid]) return;
       auditSubs[uid] = db.collection('audit/' + uid + '/eventos').onSnapshot(function(s){
@@ -2441,6 +2491,24 @@
     State.modal = { k:'decision' };
     abrirModal(html`<h3 id="modalTitulo">Solicitud ${ok ? 'aprobada' : 'rechazada'}</h3><div class="ok-box">✓ Decisión registrada</div>${resumenSolicitud(s)}${!ok ? html`<div class="sol-rechazo"><strong>Tu comentario:</strong> ${comentario}</div>` : ''}<p class="helper">${correo ? 'Puedes avisar al IF autor (' + correo + ').' : 'No hay correo registrado para el IF autor (el administrador lo agrega en Gestión de permisos): el mensaje se abrirá sin destinatario.'} El navegador no envía correos solo: el botón abre tu programa de correo con el mensaje redactado.</p><div class="btn-row"><button class="btn secondary js-modal-cerrar" type="button">Cerrar</button><a class="btn js-mailto" href="mailto:${mailtoDecision(s, estado, comentario)}">Avisar por correo al IF</a></div>`);
   }
+  function abrirModalEditar(p){
+    ED.editar = { tags: p.stakeholders.slice(), tareas: p.checklist.map(function(t){ return { texto:t.texto, hecho:t.hecho }; }) };
+    State.modal = { k:'editar', pid:p.id };
+    var destinoActual = p.unidadId || ('contrato:' + p.contratoId);
+    abrirModal(html`<h3 id="modalTitulo">Editar ficha</h3>${identBloque(p.contratoId, p.unidadId ? unidadNombre(p.unidadId) : 'Todo el contrato', 'Problemática', p.titulo)}<form id="formEditar" novalidate>
+      <div class="row2"><div class="field"><label for="mpUnidad">Unidad afectada</label><select id="mpUnidad"><option value="${'contrato:' + p.contratoId}"${destinoActual === 'contrato:' + p.contratoId ? ' selected' : ''}>Todo el contrato</option>${unidadesDe(p.contratoId).map(function(u){ return html`<option value="${u.id}"${u.id === destinoActual ? ' selected' : ''}>${u.nombre}</option>`; })}</select></div>
+        <div class="field"><label for="mpTitulo">Título</label><input id="mpTitulo" type="text" maxlength="200" value="${p.titulo}"></div></div>
+      <div class="field"><label for="mpDescripcion">Qué es el problema</label><textarea id="mpDescripcion" maxlength="4000">${p.descripcion}</textarea></div>
+      <div class="field"><label for="mpImpacto">Cómo afecta al contrato</label><textarea id="mpImpacto" maxlength="4000">${p.impacto}</textarea></div>
+      <div class="field"><label for="mpActoresInput">Actores relevantes</label><div class="tag-input" data-tags="editar"><div class="tags-chips" style="display:contents;"></div><input type="text" class="tags-in" id="mpActoresInput" maxlength="80" placeholder="Escribe un actor y presiona Enter"></div></div>
+      <div class="field"><label for="mpTareaInput">Checklist: acciones para subsanar</label><div class="tareas-ed" data-tareas="editar"><ol class="tareas-lista"></ol><div class="tarea-add"><input type="text" class="tarea-in" id="mpTareaInput" maxlength="300" placeholder="Escribe una acción y presiona Enter o «Agregar»"><button type="button" class="btn secondary small js-tarea-add">+ Agregar acción</button></div></div></div>
+      <div class="row2"><div class="field"><label for="mpRiesgo">Nivel de riesgo</label><select id="mpRiesgo">${RIESGOS.map(function(r){ return html`<option value="${r.key}"${r.key === p.nivelRiesgo ? ' selected' : ''}>${r.key}</option>`; })}</select></div>
+        <div class="field"><label for="mpVencimiento">Fecha de vencimiento (opcional)</label><input id="mpVencimiento" type="date" value="${p.fechaVencimiento || ''}"></div></div>
+      <div class="field"><label>Requiere ayuda de</label><div class="check-row-group">${ESCALAMIENTOS.map(function(x){ return html`<label class="check-row"><input type="checkbox" name="mpEsc" value="${x}"${p.escalamiento.indexOf(x) !== -1 ? ' checked' : ''}> ${x}</label>`; })}</div></div>
+      <p class="helper">Los cambios quedan registrados (quién, cuándo y el antes → después) y se agrega una nota automática a la bitácora de la ficha.</p>
+      <div class="btn-row"><button class="btn secondary js-modal-cerrar" type="button">Cancelar</button><button class="btn" type="submit">Guardar cambios</button></div></form>`, true);
+    renderTagsEd('editar'); renderTareasEd('editar');
+  }
   function abrirModalResolver(p){
     State.modal = { k:'resolver', pid:p.id };
     abrirModal(html`<h3 id="modalTitulo">Marcar como resuelta</h3>${identBloque(p.contratoId, p.unidadId ? unidadNombre(p.unidadId) : 'Todo el contrato', 'Problemática', p.titulo)}<form id="formResolver" novalidate><div class="field"><label for="mrTexto">Cómo / por qué se resolvió (obligatorio)</label><textarea id="mrTexto" maxlength="4000" placeholder="Describe qué se hizo o por qué ya no es un problema"></textarea></div><div class="btn-row"><button class="btn secondary js-modal-cerrar" type="button">Cancelar</button><button class="btn good" type="submit">Marcar como resuelta</button></div></form>`);
@@ -2448,7 +2516,7 @@
   function abrirModalFicha(p){
     var est = findBy(PB_ESTADOS, p.estado), r = p.resolucion;
     State.modal = { k:'ficha', pid:p.id };
-    abrirModal(html`<h3 id="modalTitulo">${p.titulo}</h3>${identBloque(p.contratoId, p.unidadId ? unidadNombre(p.unidadId) : 'Todo el contrato', 'Estado', est ? est.label : '')}<div class="kcard-badges">${riesgoPill(p.nivelRiesgo)}${p.fechaVencimiento ? pill('muted', 'Vencimiento: ' + fmtDate(p.fechaVencimiento)) : ''}${pill('muted', 'Creada: ' + fmtDate(p.fechaCreacion) + ' por ' + autorProblematica(p))}</div>${p.escalamiento.length ? html`<div class="ficha-sec">Requiere ayuda de</div><div class="chips">${p.escalamiento.map(function(x){ return html`<span class="chip">${x}</span>`; })}</div>` : ''}<div class="ficha-sec">Qué es el problema</div><div class="ficha-txt">${p.descripcion || '—'}</div><div class="ficha-sec">Cómo afecta al contrato</div><div class="ficha-txt">${p.impacto || '—'}</div>${p.stakeholders.length ? html`<div class="ficha-sec">Stakeholders</div><div class="chips">${p.stakeholders.map(function(x){ return html`<span class="chip">${x}</span>`; })}</div>` : ''}<div class="ficha-sec">Tareas para subsanar</div>${p.checklist.length ? p.checklist.map(function(t){ return html`<div class="ficha-txt">${t.hecho ? '☑' : '☐'} ${t.texto}</div>`; }) : html`<div class="ficha-txt">—</div>`}<div class="ficha-sec">Bitácora de notas (${p.bitacora.length})</div>${p.bitacora.length ? p.bitacora.map(function(n){ return html`<div class="bit-entry"><span class="bit-meta mono">${fmtDate(n.fecha)} · ${n.autorId ? nombreCuenta(n.autorId) : (n.autor || '—')}</span>${n.texto}</div>`; }) : html`<div class="ficha-txt">Sin notas.</div>`}<div class="ficha-sec">Motivo de resolución</div>${r ? html`<div class="ok-box" style="font-weight:600; background:var(--good-soft);">${r.texto}</div><div class="hist-who">Resuelta el ${fmtDate(r.fecha || p.fechaResuelta)} · por ${nombreCuenta(r.autorId)}</div>` : html`<div class="ficha-txt">${p.estado === 'resuelto' ? 'Sin motivo registrado (se resolvió antes de que esta información fuera obligatoria).' : 'Aún no está resuelta.'}</div>`}${p.resolucionesPrevias.length ? html`<div class="ficha-sec">Resoluciones anteriores (reabierta)</div>${p.resolucionesPrevias.map(function(x){ return html`<div class="bit-entry"><span class="bit-meta mono">${fmtDate(x.fecha)} · ${nombreCuenta(x.autorId)}</span>${x.texto}</div>`; })}` : ''}<div class="btn-row" style="margin-top:14px;"><button class="btn secondary js-modal-cerrar" type="button">Cerrar</button></div>`, true);
+    abrirModal(html`<h3 id="modalTitulo">${p.titulo}</h3>${identBloque(p.contratoId, p.unidadId ? unidadNombre(p.unidadId) : 'Todo el contrato', 'Estado', est ? est.label : '')}<div class="kcard-badges">${riesgoPill(p.nivelRiesgo)}${p.fechaVencimiento ? pill('muted', 'Vencimiento: ' + fmtDate(p.fechaVencimiento)) : ''}${pill('muted', 'Creada: ' + fmtDate(p.fechaCreacion) + ' por ' + autorProblematica(p))}</div>${p.escalamiento.length ? html`<div class="ficha-sec">Requiere ayuda de</div><div class="chips">${p.escalamiento.map(function(x){ return html`<span class="chip">${x}</span>`; })}</div>` : ''}<div class="ficha-sec">Qué es el problema</div><div class="ficha-txt">${p.descripcion || '—'}</div><div class="ficha-sec">Cómo afecta al contrato</div><div class="ficha-txt">${p.impacto || '—'}</div>${p.stakeholders.length ? html`<div class="ficha-sec">Actores relevantes</div><div class="chips">${p.stakeholders.map(function(x){ return html`<span class="chip">${x}</span>`; })}</div>` : ''}<div class="ficha-sec">Tareas para subsanar</div>${p.checklist.length ? p.checklist.map(function(t){ return html`<div class="ficha-txt">${t.hecho ? '☑' : '☐'} ${t.texto}</div>`; }) : html`<div class="ficha-txt">—</div>`}<div class="ficha-sec">Bitácora de notas (${p.bitacora.length})</div>${p.bitacora.length ? p.bitacora.map(function(n){ return html`<div class="bit-entry"><span class="bit-meta mono">${fmtDate(n.fecha)} · ${n.autorId ? nombreCuenta(n.autorId) : (n.autor || '—')}</span>${n.texto}</div>`; }) : html`<div class="ficha-txt">Sin notas.</div>`}<div class="ficha-sec">Motivo de resolución</div>${r ? html`<div class="ok-box" style="font-weight:600; background:var(--good-soft);">${r.texto}</div><div class="hist-who">Resuelta el ${fmtDate(r.fecha || p.fechaResuelta)} · por ${nombreCuenta(r.autorId)}</div>` : html`<div class="ficha-txt">${p.estado === 'resuelto' ? 'Sin motivo registrado (se resolvió antes de que esta información fuera obligatoria).' : 'Aún no está resuelta.'}</div>`}${p.resolucionesPrevias.length ? html`<div class="ficha-sec">Resoluciones anteriores (reabierta)</div>${p.resolucionesPrevias.map(function(x){ return html`<div class="bit-entry"><span class="bit-meta mono">${fmtDate(x.fecha)} · ${nombreCuenta(x.autorId)}</span>${x.texto}</div>`; })}` : ''}<div class="btn-row" style="margin-top:14px;"><button class="btn secondary js-modal-cerrar" type="button">Cerrar</button></div>`, true);
   }
 
   /* ---- notificaciones del IF ---- */
@@ -2698,18 +2766,22 @@
   function renderKcardDetail(p){
     var esLegado = legado.problematicas.has(p.id), puedeEliminar = p.autorId === myUid || esRevisor();
     var conf = State.confirmar.has('pb-' + p.id);
-    return html`<div class="kcard-detail">${p.descripcion ? html`<div class="kcard-line"><strong>Qué es:</strong> ${p.descripcion}</div>` : ''}${p.impacto ? html`<div class="kcard-line"><strong>Impacto:</strong> ${p.impacto}</div>` : ''}${p.stakeholders.length ? html`<div class="kcard-line"><strong>Stakeholders:</strong></div><div class="chips">${p.stakeholders.map(function(s){ return html`<span class="chip">${s}</span>`; })}</div>` : ''}${p.checklist.length ? html`<div class="kcard-line"><strong>Por subsanar:</strong></div>${p.checklist.map(function(t, i){ return html`<label class="chk-item"><input type="checkbox" class="chk-toggle" data-idx="${i}"${t.hecho ? ' checked' : ''}><span class="${t.hecho ? 'done' : ''}">${t.texto}</span></label>`; })}` : ''}<div class="kcard-line"><strong>Bitácora:</strong></div>${p.bitacora.length ? html`<div class="bitacora-list">${p.bitacora.map(function(n){
+    return html`<div class="kcard-detail">${p.descripcion ? html`<div class="kcard-line"><strong>Qué es:</strong> ${p.descripcion}</div>` : ''}${p.impacto ? html`<div class="kcard-line"><strong>Impacto:</strong> ${p.impacto}</div>` : ''}${p.stakeholders.length ? html`<div class="kcard-line"><strong>Actores relevantes:</strong></div><div class="chips">${p.stakeholders.map(function(s){ return html`<span class="chip">${s}</span>`; })}</div>` : ''}${p.checklist.length ? html`<div class="kcard-line"><strong>Por subsanar:</strong></div>${p.checklist.map(function(t, i){ return html`<label class="chk-item"><input type="checkbox" class="chk-toggle" data-idx="${i}"${t.hecho ? ' checked' : ''}><span class="${t.hecho ? 'done' : ''}">${t.texto}</span></label>`; })}` : ''}<div class="kcard-line"><strong>Bitácora:</strong></div>${p.bitacora.length ? html`<div class="bitacora-list">${p.bitacora.map(function(n){
       var st = puedeVerificar() ? estadoVerificacion(n.autorId, 'problematica-' + p.id + '-nota-' + n.id, canonNota(p.id, n), esLegado) : null;
       return html`<div class="bit-entry"><span class="bit-meta mono">${fmtDate(n.fecha)} · ${n.autorId ? nombreCuenta(n.autorId) : (n.autor || '—')} ${verifBadge(st, n.autorId)}</span>${n.texto}</div>`;
     })}</div>` : html`<span class="helper" style="margin:0;">Sin notas aún.</span>`}<div class="bitacora-add"><input type="text" class="bit-input" maxlength="${LIM.nota}" placeholder="Agregar nota…" aria-label="Nueva nota"><button type="button" class="btn secondary small bit-add">Agregar</button></div>${puedeEliminar ? (conf ? html`<span class="confirm-inline">¿Eliminar esta tarjeta? Queda registrada como eliminada. <button type="button" class="btn danger small js-pb-del-si">Sí, eliminar</button><button type="button" class="btn secondary small js-pb-del-no">No</button></span>` : html`<div><button type="button" class="btn ghost-danger small js-pb-del">Eliminar tarjeta</button></div>`) : ''}</div>`;
+  }
+  function verifProblematica(p){
+    if(p.edicion && p.edicion.autorId) return { st: estadoVerificacion(p.edicion.autorId, 'problematica-' + p.id + '-editar', canonEdicion(p), false), autor:p.edicion.autorId };
+    return { st: estadoVerificacion(p.autorId, 'problematica-' + p.id + '-crear', canonProblematica(p), legado.problematicas.has(p.id)), autor:p.autorId };
   }
   function renderKcard(p){
     var unidadLabel = p.unidadId ? unidadNombre(p.unidadId) : 'Todo el contrato';
     var urgente = p.escalamiento.length > 0 || p.nivelRiesgo === 'Extremo' || p.nivelRiesgo === 'Alto';
     var abierto = State.expanded.has(p.id), hechos = p.checklist.filter(function(t){ return t.hecho; }).length;
-    var st = puedeVerificar() ? estadoVerificacion(p.autorId, 'problematica-' + p.id + '-crear', canonProblematica(p), legado.problematicas.has(p.id)) : null;
+    var vp = puedeVerificar() ? verifProblematica(p) : null, st = vp ? vp.st : null;
     var alerta = State.ofAlerta[p.id] && !State.ofAlerta[p.id].isDeleted;
-    return html`<div class="kcard${urgente ? ' urgent' : ''}" draggable="true" data-id="${p.id}"><div class="kcard-title">${p.titulo}</div><div class="kcard-tag mono">${unidadLabel} · ${contratoNombre(p.contratoId)} · ${fmtDate(p.fechaCreacion)}</div><div class="kcard-badges">${riesgoPill(p.nivelRiesgo)}${vencBadge(p.fechaVencimiento)}${p.checklist.length ? pill(hechos === p.checklist.length ? 'good' : 'accent', hechos + '/' + p.checklist.length) : ''}${p.bitacora.length ? pill('muted', p.bitacora.length + ' nota' + (p.bitacora.length > 1 ? 's' : '')) : ''}${alerta ? pill('bad', 'Informada a Gabinete') : ''}${verifBadge(st, p.autorId)}</div>${p.escalamiento.length ? html`<div class="chips">${p.escalamiento.map(function(x){ return html`<span class="chip">${x}</span>`; })}</div>` : ''}<button type="button" class="link-btn kcard-expand-btn" style="align-self:flex-start; font-size:11px;">${abierto ? 'Ocultar detalle ▲' : 'Ver detalle ▾'}</button>${abierto ? renderKcardDetail(p) : ''}<div class="kcard-foot"><span>${autorProblematica(p)}</span><select class="k-move" aria-label="Mover a">${PB_ESTADOS.map(function(s){ return html`<option value="${s.key}"${s.key === p.estado ? ' selected' : ''}>${s.label}</option>`; })}</select></div></div>`;
+    return html`<div class="kcard${urgente ? ' urgent' : ''}" draggable="true" data-id="${p.id}"><div class="kcard-title">${p.titulo}</div><div class="kcard-tag mono">${unidadLabel} · ${contratoNombre(p.contratoId)} · ${fmtDate(p.fechaCreacion)}</div><div class="kcard-badges">${riesgoPill(p.nivelRiesgo)}${vencBadge(p.fechaVencimiento)}${p.checklist.length ? pill(hechos === p.checklist.length ? 'good' : 'accent', hechos + '/' + p.checklist.length) : ''}${p.bitacora.length ? pill('muted', p.bitacora.length + ' nota' + (p.bitacora.length > 1 ? 's' : '')) : ''}${alerta ? pill('bad', 'Informada a Gabinete') : ''}${p.edicion ? pill('muted', 'Editada ' + fmtTs(p.edicion.ts)) : ''}${verifBadge(st, vp ? vp.autor : p.autorId)}</div>${p.escalamiento.length ? html`<div class="chips">${p.escalamiento.map(function(x){ return html`<span class="chip">${x}</span>`; })}</div>` : ''}<button type="button" class="link-btn kcard-expand-btn" style="align-self:flex-start; font-size:11px;">${abierto ? 'Ocultar detalle ▲' : 'Ver detalle ▾'}</button>${abierto ? renderKcardDetail(p) : ''}<div class="kcard-foot"><span>${autorProblematica(p)}</span>${(p.autorId === myUid || esRevisor()) ? html`<button type="button" class="btn secondary small js-pb-edit">✎ Editar</button>` : ''}<select class="k-move" aria-label="Mover a">${PB_ESTADOS.map(function(s){ return html`<option value="${s.key}"${s.key === p.estado ? ' selected' : ''}>${s.label}</option>`; })}</select></div></div>`;
   }
   function renderKanban(){
     var items = State.problematicas.filter(function(p){ return !State.pbSoloCentral || p.escalamiento.indexOf('Directora') !== -1 || p.escalamiento.indexOf('Jurídica') !== -1; });
@@ -2789,7 +2861,7 @@
     if(b){ $('#banner').className = 'banner' + (b.cls ? ' ' + b.cls : ''); $('#bannerTxt').textContent = b.txt; }
     $('#btnRestablecer').hidden = !MODO_LOCAL;
     $('#gate').hidden = true; $('#appShell').hidden = false;
-    $('#nuevaProblema').hidden = true; $('#formProblema').reset(); resetStakeholders();
+    $('#nuevaProblema').hidden = true; $('#formProblema').reset(); resetEditores('nuevo');
     $('#pbToggleCentral').checked = false;
     window.scrollTo(0, 0);
     renderAll();
@@ -2800,7 +2872,7 @@
     State = estadoVacio();
     $('#modalBack').hidden = true; document.body.style.overflow = ''; $('#notifPanel').hidden = true; $('#btnNotif').hidden = true;
     ['#ctKpis', '#ctCards', '#gbKpis', '#gbCards', '#gbAlertas', '#gbFiltros', '#gbAprobaciones', '#solFiltros', '#solLista', '#bjKpis', '#bjLista', '#bjAlertas', '#hsBody', '#permTabla', '#permResultados', '#cfContratos', '#cfUnidades', '#cfHitos', '#permAprobadores', '#cfPesoContratos', '#rgBody', '#impContratosBox', '#impUnidadesBox', '#kanbanBoard', '#resueltasBody', '#cgAvUnidad', '#cgAvInfo', '#avTimeline', '#avContrato', '#htContrato', '#ganttWrap', '#modalBody', '#notifPanel', '#pbUnidad', '#whoami', '#tabsNav'].forEach(function(sel){ setHTML($(sel), ''); });
-    $('#formAvance').reset(); $('#formProblema').reset(); resetStakeholders();
+    $('#formAvance').reset(); $('#formProblema').reset(); resetEditores('nuevo');
     $('#appShell').hidden = true; $('#gate').hidden = false;
   }
 
@@ -2909,6 +2981,10 @@
           abrirModalEnviado(sol);
         }catch(err){ reportError(err, 'No se pudo guardar la solicitud.'); }
       });
+    } else if(m.k === 'editar'){
+      var pe = findIn(State.problematicas, m.pid); if(!pe) return cerrarModal();
+      volcarPendientes('editar');
+      conBoton(btn, function(){ return Repo.editarProblematica(pe, { destino: $('#mpUnidad').value, titulo: $('#mpTitulo').value, descripcion: $('#mpDescripcion').value, impacto: $('#mpImpacto').value, stakeholders: ED.editar.tags.slice(), checklist: ED.editar.tareas.map(function(t){ return { texto:t.texto, hecho:t.hecho }; }), fechaVencimiento: $('#mpVencimiento').value, nivelRiesgo: $('#mpRiesgo').value, escalamiento: $all('input[name="mpEsc"]:checked').map(function(c){ return c.value; }) }).then(function(){ cerrarModal(); showToast('Ficha actualizada.'); }, function(err){ reportError(err, 'No se pudo guardar la ficha.'); }); });
     } else if(m.k === 'resolver'){
       var p = findIn(State.problematicas, m.pid); if(!p) return cerrarModal();
       conBoton(btn, function(){ return Repo.moverProblematica(p, 'resuelto', $('#mrTexto').value).then(function(){ cerrarModal(); showToast('Problemática marcada como resuelta.'); }, function(err){ reportError(err, 'No se pudo marcar como resuelta.'); }); });
@@ -3163,25 +3239,63 @@
     });
   });
 
-  // problemáticas
-  var pbStakeholders = [];
-  function renderStakeholders(){ setHTML($('#pbStakeholdersChips'), pbStakeholders.map(function(s, i){ return html`<span class="tag-chip">${s}<button type="button" class="tag-remove" data-i="${i}" aria-label="Quitar">×</button></span>`; })); }
-  function resetStakeholders(){ pbStakeholders = []; renderStakeholders(); }
-  function addStakeholder(v){ var s = cleanStr(v, LIM.tag); if(!s || pbStakeholders.indexOf(s) !== -1 || pbStakeholders.length >= LIM.tags) return; pbStakeholders.push(s); renderStakeholders(); }
-  $('#pbStakeholdersInput').addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ','){ e.preventDefault(); addStakeholder(e.target.value); e.target.value = ''; } });
-  $('#pbStakeholdersInput').addEventListener('blur', function(e){ if(e.target.value.trim()){ addStakeholder(e.target.value); e.target.value = ''; } });
-  $('#pbStakeholdersChips').addEventListener('click', function(e){ var b = cerca(e.target, '.tag-remove'); if(!b) return; var i = strictInt(b.getAttribute('data-i'), 0, LIM.tags - 1); if(i !== null){ pbStakeholders.splice(i, 1); renderStakeholders(); } });
+  // problemáticas: editores de "actores relevantes" y de checklist (sirven al formulario de creación y al de edición)
+  var ED = { nuevo:{ tags:[], tareas:[] }, editar:{ tags:[], tareas:[] } };
+  function claveEd(el, attr){ var b = cerca(el, '[' + attr + ']'); var k = b && b.getAttribute(attr); return (k === 'nuevo' || k === 'editar') ? k : null; }
+  function renderTagsEd(k){
+    var box = document.querySelector('[data-tags="' + k + '"]'); if(!box) return;
+    setHTML(box.querySelector('.tags-chips'), ED[k].tags.map(function(t, i){ return html`<span class="tag-chip">${t}<button type="button" class="tag-remove" data-i="${i}" aria-label="${'Quitar ' + t}">×</button></span>`; }));
+  }
+  function renderTareasEd(k, foco){
+    var box = document.querySelector('[data-tareas="' + k + '"]'); if(!box) return;
+    var lista = ED[k].tareas, ol = box.querySelector('.tareas-lista');
+    setHTML(ol, lista.map(function(t, i){
+      return html`<li class="tarea-fila"><input type="text" class="tarea-txt" data-i="${i}" maxlength="${LIM.tarea}" value="${t.texto}" aria-label="${'Acción ' + (i + 1)}">${k === 'editar' ? html`<label class="check-row" style="padding:4px 8px;"><input type="checkbox" class="tarea-hecho" data-i="${i}"${t.hecho ? ' checked' : ''}> hecha</label>` : ''}<button type="button" class="tag-remove js-tarea-del" data-i="${i}" aria-label="${'Quitar la acción ' + (i + 1)}">×</button></li>`;
+    }));
+    ol.hidden = !lista.length;
+    if(foco) box.querySelector('.tarea-in').focus();
+  }
+  function resetEditores(k){ ED[k] = { tags:[], tareas:[] }; renderTagsEd(k); renderTareasEd(k); var f = document.querySelector('[data-tags="' + k + '"] .tags-in'), g = document.querySelector('[data-tareas="' + k + '"] .tarea-in'); if(f) f.value = ''; if(g) g.value = ''; }
+  function agregarTag(k, v){ var t = cleanStr(v, LIM.tag); if(!t || ED[k].tags.indexOf(t) !== -1 || ED[k].tags.length >= LIM.tags) return; ED[k].tags.push(t); renderTagsEd(k); }
+  function agregarTarea(k, v, foco){
+    var t = cleanStr(v, LIM.tarea); if(!t) return false;
+    if(ED[k].tareas.length >= LIM.checklist){ showToast('El checklist admite hasta ' + LIM.checklist + ' acciones.'); return false; }
+    ED[k].tareas.push({ texto:t, hecho:false }); renderTareasEd(k, foco); return true;
+  }
+  function volcarPendientes(k){   // lo escrito pero aún sin agregar se agrega al guardar
+    var f = document.querySelector('[data-tags="' + k + '"] .tags-in'), g = document.querySelector('[data-tareas="' + k + '"] .tarea-in');
+    if(f && f.value.trim()){ agregarTag(k, f.value); f.value = ''; }
+    if(g && g.value.trim()){ agregarTarea(k, g.value, false); g.value = ''; }
+  }
+  document.addEventListener('keydown', function(e){
+    if(e.target.classList && e.target.classList.contains('tags-in') && (e.key === 'Enter' || e.key === ',')){ var k = claveEd(e.target, 'data-tags'); e.preventDefault(); if(k){ agregarTag(k, e.target.value); e.target.value = ''; } }
+    else if(e.target.classList && e.target.classList.contains('tarea-in') && e.key === 'Enter'){ var k2 = claveEd(e.target, 'data-tareas'); e.preventDefault(); if(k2 && agregarTarea(k2, e.target.value, true)) e.target.value = ''; }
+  });
+  document.addEventListener('focusout', function(e){ if(e.target.classList && e.target.classList.contains('tags-in') && e.target.value.trim()){ var k = claveEd(e.target, 'data-tags'); if(k){ agregarTag(k, e.target.value); e.target.value = ''; } } });
+  document.addEventListener('click', function(e){
+    var b = cerca(e.target, '.tag-remove');
+    if(b && cerca(b, '[data-tags]')){ var k = claveEd(b, 'data-tags'), i = strictInt(b.getAttribute('data-i'), 0, LIM.tags - 1); if(k && i !== null){ ED[k].tags.splice(i, 1); renderTagsEd(k); } return; }
+    if(b && b.classList.contains('js-tarea-del')){ var k2 = claveEd(b, 'data-tareas'), i2 = strictInt(b.getAttribute('data-i'), 0, LIM.checklist - 1); if(k2 && i2 !== null){ ED[k2].tareas.splice(i2, 1); renderTareasEd(k2); } return; }
+    var a = cerca(e.target, '.js-tarea-add');
+    if(a){ var k3 = claveEd(a, 'data-tareas'), inp = k3 && document.querySelector('[data-tareas="' + k3 + '"] .tarea-in'); if(k3 && inp && agregarTarea(k3, inp.value, true)) inp.value = ''; }
+  });
+  document.addEventListener('input', function(e){
+    if(e.target.classList && e.target.classList.contains('tarea-txt')){ var k = claveEd(e.target, 'data-tareas'), i = strictInt(e.target.getAttribute('data-i'), 0, LIM.checklist - 1); if(k && i !== null && ED[k].tareas[i]) ED[k].tareas[i].texto = e.target.value; }
+  });
+  document.addEventListener('change', function(e){
+    if(e.target.classList && e.target.classList.contains('tarea-hecho')){ var k = claveEd(e.target, 'data-tareas'), i = strictInt(e.target.getAttribute('data-i'), 0, LIM.checklist - 1); if(k && i !== null && ED[k].tareas[i]) ED[k].tareas[i].hecho = e.target.checked; }
+  });
   $('#btnToggleNueva').addEventListener('click', function(){ var p = $('#nuevaProblema'); p.hidden = !p.hidden; if(!p.hidden) renderPbUnidadSelect(); });
-  $('#btnCancelarProblema').addEventListener('click', function(){ $('#nuevaProblema').hidden = true; $('#formProblema').reset(); resetStakeholders(); });
+  $('#btnCancelarProblema').addEventListener('click', function(){ $('#nuevaProblema').hidden = true; $('#formProblema').reset(); resetEditores('nuevo'); });
   $('#pbToggleCentral').addEventListener('change', function(e){ State.pbSoloCentral = e.target.checked; renderKanban(); });
   $('#formProblema').addEventListener('submit', function(e){
     e.preventDefault();
     conBoton(e.target.querySelector('button[type=submit]'), async function(){
       try{
-        if($('#pbStakeholdersInput').value.trim()){ addStakeholder($('#pbStakeholdersInput').value); $('#pbStakeholdersInput').value = ''; }
-        await Repo.crearProblematica({ destino: $('#pbUnidad').value, titulo: $('#pbTitulo').value, descripcion: $('#pbDescripcion').value, impacto: $('#pbImpacto').value, stakeholders: pbStakeholders.slice(), checklist: $('#pbAccion').value, fechaVencimiento: $('#pbVencimiento').value, nivelRiesgo: $('#pbRiesgo').value, escalamiento: $all('#formProblema .check-row input:checked').map(function(c){ return c.value; }) });
+        volcarPendientes('nuevo');
+        await Repo.crearProblematica({ destino: $('#pbUnidad').value, titulo: $('#pbTitulo').value, descripcion: $('#pbDescripcion').value, impacto: $('#pbImpacto').value, stakeholders: ED.nuevo.tags.slice(), checklist: ED.nuevo.tareas.map(function(t){ return t.texto; }), fechaVencimiento: $('#pbVencimiento').value, nivelRiesgo: $('#pbRiesgo').value, escalamiento: $all('#formProblema .check-row input:checked').filter(function(c){ return c.value; }).map(function(c){ return c.value; }) });
         showToast('Tarjeta creada.');
-        e.target.reset(); resetStakeholders(); $('#nuevaProblema').hidden = true;
+        e.target.reset(); resetEditores('nuevo'); $('#nuevaProblema').hidden = true;
       }catch(err){ reportError(err, 'No se pudo crear la tarjeta.'); }
     });
   });
@@ -3194,6 +3308,7 @@
   var board = $('#kanbanBoard');
   board.addEventListener('click', function(e){
     var p = tarjetaDe(e.target); if(!p) return;
+    if(cerca(e.target, '.js-pb-edit')){ abrirModalEditar(p); return; }
     if(cerca(e.target, '.kcard-expand-btn')){ if(State.expanded.has(p.id)) State.expanded.delete(p.id); else State.expanded.add(p.id); renderKanban(); return; }
     var key = 'pb-' + p.id;
     if(cerca(e.target, '.js-pb-del')){ State.confirmar.add(key); renderKanban(); return; }

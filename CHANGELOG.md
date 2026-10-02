@@ -10,6 +10,13 @@ Formato de cada entrada: versión · fecha · commit — qué cambió · pruebas
 
 ---
 
+## v10.10 · 2026-10-02 — Ficha de problemáticas: actores relevantes, checklist y edición
+- "Stakeholders" pasa a llamarse **"Actores relevantes"** (formulario, tarjeta y ficha; el dato guardado sigue siendo el mismo).
+- **Checklist de acciones para subsanar**: en vez de un cuadro "una tarea por línea", cada acción aparece en su línea numerada, con botón **"+ Agregar acción"** (o Enter) y botón × para quitarla. Lo escrito sin agregar se agrega al guardar.
+- **Botón "✎ Editar"** en cada ficha (autor o jefatura del contrato): permite cambiar unidad, título, descripción, impacto, actores, checklist (renombrar, marcar hecha, quitar, agregar), riesgo, vencimiento y ayuda requerida.
+- Cada edición deja: quién y cuándo editó (solo el id), una nota automática en la bitácora de la ficha, un recibo con huella (la verificación de autoría sigue funcionando) y una anotación en el Registro de cambios con el antes → después.
+- Pruebas: frontend 216/216 · backend 54/54.
+
 ## v10.9 · 2026-10-02 — Registro de cambios auditable (dentro de la herramienta) y CHANGELOG
 - **Pestaña "Registro de cambios"** (administrador): quién modificó qué, cuándo y el **antes → después** de cada campo; filtros por qué, quién, texto y fechas; "Ver más"; exportación a CSV (neutraliza fórmulas de Excel).
 - Se anotan contratos, subsectores, hitos de línea base, permisos, pesos, cargas masivas, solicitudes (enviar, cancelar, aprobar, rechazar), alertas a Gabinete y problemáticas (crear, mover, resolver, tareas, notas, eliminar).
