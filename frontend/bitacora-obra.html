@@ -377,6 +377,22 @@
   .ok-box{ background:var(--good-soft); color:var(--good); border-radius:10px; padding:10px 14px; font-weight:700; font-size:13.5px; margin-bottom:12px; }
   a.btn{ display:inline-block; text-decoration:none; }
 
+  /* ---------- semáforo de contratos ---------- */
+  .kpi-sem{ grid-column:span 2; }
+  @media (max-width:640px){ .kpi-sem{ grid-column:1 / -1; } }
+  .sem-figs{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; }
+  .sem-fig{ font:inherit; text-align:left; border:2px solid transparent; border-radius:10px; padding:10px 12px; cursor:pointer; display:flex; flex-direction:column; gap:3px; color:inherit; }
+  .sem-fig.bad{ background:var(--bad-soft); color:var(--bad); } .sem-fig.warn{ background:var(--warn-soft); color:var(--warn); } .sem-fig.good{ background:var(--good-soft); color:var(--good); }
+  .sem-fig:hover{ filter:brightness(.97); }
+  .sem-fig[aria-pressed="true"]{ border-color:currentColor; box-shadow:0 0 0 2px var(--surface), 0 0 0 4px currentColor; }
+  .sem-fig:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .sem-n{ font-size:30px; font-weight:700; line-height:1; }
+  .sem-t{ font-size:12px; font-weight:700; }
+  .sem-ley{ list-style:none; margin:10px 0 0; padding:0; display:flex; flex-direction:column; gap:4px; font-size:11.5px; color:var(--ink-soft); line-height:1.4; }
+  .sem-ley li{ display:flex; gap:7px; align-items:flex-start; }
+  .sem-ley .dot{ flex:none; width:9px; height:9px; border-radius:50%; margin-top:4px; }
+  .sem-ley .dot.bad{ background:var(--bad); } .sem-ley .dot.warn{ background:var(--warn); } .sem-ley .dot.good{ background:var(--good); }
+
   /* ---------- carga masiva y subsectores ---------- */
   .imp-box{ display:flex; flex-direction:column; gap:8px; }
   .imp-box .helper{ margin:0; }
@@ -1037,7 +1053,7 @@
       recibos:Object.create(null), recibosCargados:Object.create(null), cuentas:Object.create(null),
       expRadar:new Set(), expHist:new Set(), expanded:new Set(), confirmar:new Set(), rechazando:new Set(), rechazoTexto:Object.create(null),
       solFiltro:'PENDIENTE_APROBACION', permEdits:Object.create(null), permNuevos:[], permHits:[], pbSoloCentral:false,
-      leidoTs:0, notifAbierto:false, modal:null, correoEdits:Object.create(null), gbFiltro:'todo', gbLimite:10, imp:{ contratos:null, unidades:null }, uAbierto:Object.create(null)
+      leidoTs:0, notifAbierto:false, modal:null, correoEdits:Object.create(null), gbFiltro:'todo', gbLimite:10, semFiltro:null, imp:{ contratos:null, unidades:null }, uAbierto:Object.create(null)
     };
   }
   function fail(msg){ var e = new Error(msg); e.code = 'validacion'; return e; }
@@ -1984,6 +2000,7 @@
     var abiertoR = State.expRadar.has(c.id), abiertoH = State.expHist.has(c.id), key = 'av-' + c.id;
     return html`<article class="ccard sem-${sem.cls}" data-cid="${c.id}"><header class="ccard-head"><div><h3>${c.nombre}${rolContratoPill(c.id)}</h3><div class="ccard-meta">${nU} ${plural(etiqueta, nU)}${c.inspectorNombre ? ' · IF: ' + c.inspectorNombre : ''}</div></div><span class="sem ${sem.cls}" title="Semáforo del contrato (según hitos y alertas aprobadas)">${sem.label}</span></header><div><div class="av-top"><span class="av-lbl">Avance físico vigente</span><span class="av-num mono">${av.pct === null ? '—' : av.pct + '%'}</span></div><div class="bar"><div class="bar-fill" data-key="${key}" data-pct="${av.pct || 0}" style="width:${barPrev(key)}%"></div></div><div class="av-sub">${av.pct === null ? 'Sin reportes aprobados' : av.reportadas + ' de ' + av.total + ' ' + plural(etiqueta, av.total) + ' con reporte aprobado'}${pend ? pill('warn', pend + ' en revisión') : ''}</div></div>${renderRadar(pasos, abiertoR)}${abiertoR ? renderDesglose(c) : ''}<footer class="ccard-foot"><button type="button" class="link-btn js-hist" aria-expanded="${abiertoH ? 'true' : 'false'}">${abiertoH ? 'Ocultar bitácora histórica ▲' : 'Bitácora histórica ▾'}</button>${al.length ? pill('bad', al.length + ' alerta' + (al.length > 1 ? 's' : '') + ' escalada' + (al.length > 1 ? 's' : '')) : ''}</footer>${abiertoH ? renderHistContrato(c.id) : ''}</article>`;
   }
+  function filtrarSemaforo(cs){ return State.semFiltro ? cs.filter(function(c){ return semaforo(c.id).cls === State.semFiltro; }) : cs; }
   function kpisContratos(cs, conPendientes){
     var pcts = cs.map(function(c){ return avanceContrato(c.id).pct; }).filter(function(p){ return p !== null; });
     var global = pcts.length ? Math.round(pcts.reduce(function(s, p){ return s + p; }, 0) / pcts.length) : null;
@@ -1993,7 +2010,7 @@
     cs.forEach(function(c){ hitosDe(c.id).forEach(function(h){ if(hitoEstado(h).key === 'atrasado') atrasados++; }); });
     var alertas = cs.reduce(function(n, c){ return n + alertasActivas(c.id).length; }, 0);
     var pend = conPendientes ? State.solicitudes.filter(function(s){ return s.estado === 'PENDIENTE_APROBACION'; }).length : null;
-    return html`<div class="kpi"><div class="kpi-lbl">% avance global</div><div class="kpi-num">${global === null ? '—' : global + '%'}</div><div class="kpi-sub">${cs.length} contrato${cs.length === 1 ? '' : 's'}</div></div><div class="kpi"><div class="kpi-lbl">Semáforo</div><div class="kpi-num${sem.bad ? ' bad' : (sem.warn ? ' warn' : ' good')}">${sem.bad}/${sem.warn}/${sem.good}</div><div class="kpi-sub">${pill('bad', sem.bad + ' rojo')}${pill('warn', sem.warn + ' ámbar')}${pill('good', sem.good + ' verde')}</div></div><div class="kpi"><div class="kpi-lbl">Hitos atrasados</div><div class="kpi-num${atrasados ? ' bad' : ''}">${atrasados}</div><div class="kpi-sub">Según fechas aprobadas</div></div><div class="kpi"><div class="kpi-lbl">${conPendientes ? 'En revisión' : 'Alertas escaladas'}</div><div class="kpi-num${(conPendientes ? pend : alertas) ? ' warn' : ''}">${conPendientes ? pend : alertas}</div><div class="kpi-sub">${conPendientes ? alertas + ' alerta' + (alertas === 1 ? '' : 's') + ' publicada' + (alertas === 1 ? '' : 's') : 'Publicadas por las jefaturas'}</div></div>`;
+    return html`<div class="kpi"><div class="kpi-lbl">% avance global</div><div class="kpi-num">${global === null ? '—' : global + '%'}</div><div class="kpi-sub">${cs.length} contrato${cs.length === 1 ? '' : 's'}</div></div><div class="kpi kpi-sem"><div class="kpi-lbl">Semáforo de contratos</div><div class="sem-figs" role="group" aria-label="Filtrar los contratos por color del semáforo">${[['bad', 'rojo'], ['warn', 'ámbar'], ['good', 'verde']].map(function(f){ return html`<button type="button" class="sem-fig ${f[0]}" data-sem="${f[0]}" aria-pressed="${State.semFiltro === f[0] ? 'true' : 'false'}"><span class="sem-n mono">${sem[f[0]]}</span><span class="sem-t">${sem[f[0]] === 1 ? 'contrato' : 'contratos'} en ${f[1]}</span></button>`; })}</div><ul class="sem-ley"><li><i class="dot bad"></i><span><strong>Rojo:</strong> hito atrasado, alerta extrema publicada o desvío de fechas de más de 30 días.</span></li><li><i class="dot warn"></i><span><strong>Ámbar:</strong> desvío de fechas (hasta 30 días) o alerta publicada que no sea extrema.</span></li><li><i class="dot good"></i><span><strong>Verde:</strong> ninguna de las anteriores.</span></li></ul><div class="kpi-sub">${State.semFiltro ? html`<button type="button" class="link-btn js-sem-quitar">Quitar el filtro (se muestran solo los contratos en ${{ bad:'rojo', warn:'ámbar', good:'verde' }[State.semFiltro]})</button>` : 'Haz clic en un color para filtrar las tarjetas de contratos.'}</div></div><div class="kpi"><div class="kpi-lbl">Hitos atrasados</div><div class="kpi-num${atrasados ? ' bad' : ''}">${atrasados}</div><div class="kpi-sub">Según fechas aprobadas</div></div><div class="kpi"><div class="kpi-lbl">${conPendientes ? 'En revisión' : 'Alertas escaladas'}</div><div class="kpi-num${(conPendientes ? pend : alertas) ? ' warn' : ''}">${conPendientes ? pend : alertas}</div><div class="kpi-sub">${conPendientes ? alertas + ' alerta' + (alertas === 1 ? '' : 's') + ' publicada' + (alertas === 1 ? '' : 's') : 'Publicadas por las jefaturas'}</div></div>`;
   }
   function renderContratos(){
     var cs = contratosVisibles();
@@ -2002,8 +2019,10 @@
     setHTML($('#ctKpis'), cs.length ? kpisContratos(cs, true) : '');
     var empty = $('#ctEmpty');
     if(!cs.length){ setHTML($('#ctCards'), ''); empty.textContent = Session.role === 'if' ? 'Todavía no tienes contratos asignados. Pide al administrador que te los asigne.' : 'No hay contratos activos.'; empty.hidden = false; return; }
-    empty.hidden = true;
-    setHTML($('#ctCards'), cs.map(function(c){ return renderCard(c, false); }));
+    var vis = filtrarSemaforo(cs);
+    empty.hidden = vis.length > 0;
+    if(!vis.length) empty.textContent = 'Ningún contrato en ' + { bad:'rojo', warn:'ámbar', good:'verde' }[State.semFiltro] + '. Quita el filtro del semáforo para ver todos.';
+    setHTML($('#ctCards'), vis.map(function(c){ return renderCard(c, false); }));
     animarBarras($('#ctCards'));
   }
   function renderGabinete(){
@@ -2012,8 +2031,10 @@
     State.ofHist.forEach(function(h){ if(h.aprobadoTs > ultimo) ultimo = h.aprobadoTs; });
     $('#gbActualizado').textContent = ultimo ? 'última aprobación: ' + fmtTs(ultimo) : 'sin aprobaciones todavía';
     setHTML($('#gbKpis'), cs.length ? kpisContratos(cs, false) : '');
-    $('#gbEmpty').hidden = cs.length > 0;
-    setHTML($('#gbCards'), cs.map(function(c){ return renderCard(c, true); }));
+    var vis = filtrarSemaforo(cs);
+    $('#gbEmpty').hidden = vis.length > 0;
+    $('#gbEmpty').textContent = cs.length ? 'Ningún contrato en ' + { bad:'rojo', warn:'ámbar', good:'verde' }[State.semFiltro] + '. Quita el filtro del semáforo para ver todos.' : 'Aún no hay contratos con información aprobada.';
+    setHTML($('#gbCards'), vis.map(function(c){ return renderCard(c, true); }));
     animarBarras($('#gbCards'));
     var al = alertasActivas(null).sort(function(a, b){ return b.aprobadoTs - a.aprobadoTs; });
     renderAprobacionesGabinete();
@@ -2508,6 +2529,13 @@
     if(GB_FILTROS.some(function(x){ return x[0] === f; })){ State.gbFiltro = f; State.gbLimite = 10; renderGabinete(); }
   });
   $('#gbVerMas').addEventListener('click', function(){ State.gbLimite += 10; renderGabinete(); });
+  function onSemaforo(e){
+    var b = cerca(e.target, '.sem-fig');
+    if(b){ var c = cleanEnum(b.getAttribute('data-sem'), ['bad', 'warn', 'good']); if(c){ State.semFiltro = State.semFiltro === c ? null : c; renderAll(); } return; }
+    if(cerca(e.target, '.js-sem-quitar')){ State.semFiltro = null; renderAll(); }
+  }
+  $('#ctKpis').addEventListener('click', onSemaforo);
+  $('#gbKpis').addEventListener('click', onSemaforo);
   $('#ctCards').addEventListener('click', onCards);
   $('#gbCards').addEventListener('click', onCards);
 
