@@ -359,6 +359,14 @@
   .g-sw.b-desvio{ background:var(--warn); height:6px; border-radius:999px; width:18px; } .g-sw.b-atrasado{ background:var(--bad); height:6px; border-radius:999px; width:18px; }
   .g-sw.hoy{ width:2px; height:14px; background:var(--bad); }
 
+  @media (max-width:720px){
+    .g-head, .g-row, .g-group{ grid-template-columns:150px minmax(0,1fr); }
+    .g-overlay{ left:150px; }
+    .g-lbl{ padding:8px; }
+    .ctr-activo{ flex-wrap:wrap; width:100%; }
+    .ctr-activo select{ width:100%; min-width:0; }
+  }
+
   /* ---------- ventana emergente ---------- */
   .modal-back{ position:fixed; inset:0; background:rgba(8,18,32,.55); z-index:60; display:flex; align-items:flex-start; justify-content:center; padding:5vh 16px; overflow-y:auto; }
   .modal{ background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow-hover); width:100%; max-width:560px; padding:22px 24px; position:relative; }
@@ -2141,8 +2149,8 @@
       var a = h.fechaContractual ? pct(h.fechaContractual) : null, b = (real || vig) ? pct(real || vig) : null, pv = vig ? pct(vig) : null, pr = real ? pct(real) : null;
       return html`<button type="button" class="g-row js-g-hito" data-hid="${h.id}" title="${tip}" aria-label="${'Modificar hito ' + (h.nombre || h.tipo) + '. ' + tip}"><span class="g-lbl"><span class="g-nombre">${h.nombre || h.tipo}</span><span class="g-sub">${h.tipo} ${pill(e.cls, e.label)}${pend ? pill('warn', 'Propuesta en revisión') : ''}</span></span><span class="g-track">${a !== null && b !== null && Math.abs(a - b) > 0.01 ? html`<i class="g-bar ${e.key}" style="left:${css(Math.min(a, b))}%; width:${css(Math.abs(a - b))}%"></i>` : ''}${a !== null ? html`<i class="g-mk contractual" style="left:${css(a)}%"></i>` : ''}${pv !== null && pr === null ? html`<i class="g-mk vigente ${e.key}" style="left:${css(pv)}%"></i>` : ''}${pr !== null ? html`<i class="g-mk real" style="left:${css(pr)}%"></i>` : ''}</span></button>`;
     }
-    var minW = Math.max(760, meses.length * 64), hx = css(pct(hoy));
-    setHTML(wrap, html`<div class="g-scroll"><div class="g-inner" style="min-width:${260 + minW}px"><div class="g-overlay" aria-hidden="true">${meses.map(function(m){ return html`<i class="g-linea" style="left:${css(m.left)}%"></i>`; })}<i class="g-hoy" style="left:${hx}%"></i><span class="g-hoy-lbl" style="left:${hx}%">Hoy</span></div><div class="g-head"><span class="g-lbl">Sector / hito</span><div class="g-meses">${meses.map(function(m){ return html`<span class="g-mes-lbl" style="left:${css(m.left)}%">${m.lbl}</span>`; })}</div></div>${orden.map(function(k){
+    var minW = Math.max(760, meses.length * 64), hx = css(pct(hoy)), lblW = window.matchMedia && window.matchMedia('(max-width:720px)').matches ? 150 : 260;
+    setHTML(wrap, html`<div class="g-scroll"><div class="g-inner" style="min-width:${lblW + minW}px"><div class="g-overlay" aria-hidden="true">${meses.map(function(m){ return html`<i class="g-linea" style="left:${css(m.left)}%"></i>`; })}<i class="g-hoy" style="left:${hx}%"></i><span class="g-hoy-lbl" style="left:${hx}%">Hoy</span></div><div class="g-head"><span class="g-lbl">Sector / hito</span><div class="g-meses">${meses.map(function(m){ return html`<span class="g-mes-lbl" style="left:${css(m.left)}%">${m.lbl}</span>`; })}</div></div>${orden.map(function(k){
       var lista = grupos[k].slice().sort(function(x, y){ var ix = RADAR.indexOf(x.tipo), iy = RADAR.indexOf(y.tipo); ix = ix < 0 ? 99 : ix; iy = iy < 0 ? 99 : iy; return ix - iy || ((fechaObjetivo(x) || '') < (fechaObjetivo(y) || '') ? -1 : 1); });
       return html`<div class="g-group"><span class="g-lbl">${k === '_contrato' ? 'Todo el contrato' : unidadNombre(k)}</span></div>${lista.map(filaGantt)}`;
     })}</div></div>`);

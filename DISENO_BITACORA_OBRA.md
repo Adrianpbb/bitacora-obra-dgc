@@ -1,6 +1,6 @@
 # Bitácora de Obra — Diseño y bitácora de avance
 
-**Actualizado al: 2026-10-02**
+**Actualizado al: 2026-10-02** (v10: sección 11)
 
 **Desde 2026-10-02 se trabaja y entrega como HTML local** (`frontend\Bitacora de Obra.html`,
 ver sección 10): la red MOP bloquea claude.ai y el usuario no puede abrir los artifacts.
@@ -62,7 +62,7 @@ el bloqueo es la pregunta de capacidad del hosting DGC, que AÚN no se ha confir
 exactamente el mismo pendiente, aunque la misma infraestructura SQL, una vez otorgada, podría
 servir a ambos.
 
-## 4. Modelo de datos (colección `db` del Artifact) — vigente desde 2026-10-01 (v8)
+## 4. Modelo de datos (colección `db` del Artifact) — vigente desde 2026-10-01 (v8); cambios de la v10 en la sección 11.2
 
 ```
 contratos (nombre, unidadLabel, inspectorNombre, activo)        [lee: Lector · escribe: Editor]
@@ -120,6 +120,8 @@ aprobación, datos oficiales, radar de hitos críticos, paleta institucional con
 artifact demo aparte. Se retiró la clave por contrato. Detalle en la sección 9. Desde esta
 versión la carpeta es un repositorio **git** (un commit por hito).
 
+**2026-10-02** — v10: pantalla del IF (Gantt, avisos, correo), Gabinete, cargas por Excel, semáforo y banner (sección 11).
+
 **2026-10-02** — v9: **modo local**. Decisión del usuario: "trabajémoslo siempre en HTML, porque
 no me abren los artefactos en claude.ai". El mismo HTML, abierto desde disco, funciona sin
 claude.ai guardando en el navegador; se genera además un archivo único autocontenido. Detalle
@@ -141,6 +143,10 @@ en la sección 10.
 
 ## 7. Pendiente / próximos pasos
 
+- [ ] **(2026-10-02, v10) Decisiones abiertas del dueño del proyecto**: ver la lista de la sección 11.6
+      (regla del semáforo, correo por contrato o por persona, lector de Excel propio, línea base por Excel, etc.).
+- [x] **(2026-10-02, v10) Carga de contratos y subsectores sin ir uno por uno**: resuelto con Excel/CSV (sección 11.3).
+- [x] **(2026-10-02, v10) Trabajar los hitos desde una vista tipo Monday**: resuelto con la carta Gantt del IF (sección 11.1). El Monday real sigue pendiente.
 - [ ] **(2026-10-02) Definir el camino multiusuario sin claude.ai.** El modo local es para una
       sola persona en un solo navegador. Opción intermedia: servir el `backend\` (SQLite) desde un
       PC o servidor de la red DGC. La definitiva sigue siendo SQL Server con el DBA (ver abajo).
@@ -153,7 +159,10 @@ en la sección 10.
 - [ ] Compartir el demo (https://claude.ai/artifact/7T3Q5quQzyy9p5fudSUGem) con quienes lo vayan a
       ver como **Colaborador**, para presentar al Jefe de División y jefaturas.
 - [ ] Revisar `backend\schema_sqlserver.sql` con el DBA antes de ejecutarlo (no se ha corrido
-      contra SQL Server; el mismo modelo sí está probado en SQLite).
+      contra SQL Server; el mismo modelo sí está probado en SQLite). **Desde la v10 hay que revisar además**: columnas nuevas
+      (CodDeaf, InspectorSuplente, CorreoAprobador, RolContrato, ResolucionTexto/PorId), tablas nuevas
+      (ProblematicaResolucionPrevia, LecturaNotificacion), índices únicos (UX_Contrato_CodDeaf, UX_Unidad_Contrato_Nombre; la
+      unicidad sin distinguir mayúsculas depende de la intercalación `_CI_` de la base) y la política `PoliticaPropia`.
 - [ ] En el backend definitivo: identidad con AD/Entra ID (SSO), cookie de sesión HttpOnly +
       Secure + SameSite, y Content-Security-Policy con nonce.
 - [ ] Confirmar si el hosting web de DGC soporta backend o es solo estático.
@@ -265,7 +274,7 @@ perdió ningún registro.
 Bitacora de Obra\
   DISENO_BITACORA_OBRA.md      ← este documento
   frontend\bitacora-obra.html  ← fuente del artifact (se publica desde aquí)
-  backend\                     ← validar.py, auth_clave.py, repositorio.py, schema_*.sql
+  backend\                     ← validar.py, auth_sesion.py, repositorio.py, schema_*.sql
   pruebas\                     ← test_backend.py, test_frontend.py
 ```
 
@@ -416,3 +425,122 @@ El artifact real **no se republicó** con estos cambios y queda congelado en la 
   - sin XSS ni errores de JS.
 - **Backend: 23/23.**
 - **Archivo autocontenido:** abierto desde otra carpeta carga el logo y no da errores de consola.
+
+## 11. v10 — Pantalla del IF, Gantt, avisos, cargas por Excel y semáforo (2026-10-02)
+
+Encargo del dueño del proyecto, hecho en el orden 1→7 con un commit por punto (`v10.1` … `v10.6`, más el cierre).
+Fuente única `frontend\bitacora-obra.html`; después de cada cambio `python frontend\generar_demo.py`.
+
+### 11.1 Qué cambió, por punto
+
+1. **Banner y ancho.** Banner en dos zonas (marca y título a la izquierda; "Ver como", usuario y botones a la
+   derecha) con logo de 64 px y pestañas separadas debajo. El contenido y el banner comparten el ancho máximo de
+   1.600 px con 32 px de gutter (16 px en teléfono). Tarjetas con `auto-fill`.
+2. **Pantalla del IF.**
+   - *Titular / Suplente* por contrato (`permisos/<uid>.rolesContrato`): etiqueta en tarjetas y en el selector; con más de un
+     contrato aparece el selector de **contrato activo** (rige "Cargar avance" y el Gantt). Más de 2 contratos por IF
+     solo genera una advertencia en Gestión de permisos.
+   - *Cargar información* quedó en dos pestañas: **Cargar avance** (formulario + historial de avances aprobados en
+     línea de tiempo + bloque "¿Hay un problema en terreno?") y **Modificar hitos**.
+   - *Modificar hitos* es una **carta Gantt** (por sector: Ingeniería → Inicio Físico → PSP → PSD) con F. contractual (rombo),
+     F. programada vigente (cuadrado), F. real (círculo), línea de hoy y colores por estado (cumplido, en plazo, con desvío, atrasado).
+     Usa solo datos oficiales. Un clic en el hito abre el popup (nueva fecha programada con justificación obligatoria, o fecha real
+     no futura) y crea la solicitud. Se retiró el formulario suelto de hitos.
+   - *Notificaciones*: campanita con contador (rechazadas con el comentario del revisor, aprobadas, pendientes). Lo leído se
+     guarda como `notificaciones/<uid>.leidoTs` (solo un número, sin nombres).
+   - *Correo*: al enviar una solicitud aparece "Avisar por correo al aprobador" (`mailto:` con contrato, sector, hito o avance,
+     valor actual → propuesto y justificación; se codifica con `encodeURIComponent` y el cuerpo se limita a 1.500 caracteres).
+     El navegador **no envía** correos: abre el programa de correo (Outlook).
+   - *Problemáticas resueltas*: el motivo "Cómo / por qué se resolvió" es obligatorio (mín. 5 caracteres) y queda con fecha y
+     autor (id). En Resueltas hay una **ficha completa** (descripción, riesgo, stakeholders, checklist, toda la bitácora y el motivo).
+     Al reabrir, la resolución anterior se conserva (`resolucionesPrevias`).
+3. **Validador.** Cada solicitud muestra **Contrato / Sector / Hito a modificar** con letra grande, luego valor actual → propuesto y la
+   justificación. Tras aprobar o rechazar se ofrece "Avisar por correo al IF" (`mailto:` al IF autor; el rechazo lleva el comentario).
+4. **Gabinete.** Sigue de solo lectura, sin bandeja ni botones de aprobación (hay prueba). Nueva tabla **Últimas aprobaciones**
+   (solo `oficial/hist-*`): avances aprobados y hitos modificados con contrato, sector, hito, anterior → nuevo y fecha de
+   aprobación; de la más reciente a la más antigua, 10 por vez ("Ver más") y filtro. Para que el "antes" de un hito sin fecha vigente
+   previa sea claro, ahora es la fecha contractual (frontend y backend).
+5. **Administrador.**
+   - Contrato con `codDeaf` (único), IF titular, IF suplente y correo del aprobador.
+   - **Carga por Excel/CSV** de contratos (COD_DEAF, NOMBRE_CONTRATO, TIPO_UNIDAD, IF_TITULAR, IF_SUPLENTE, CORREO_APROBADOR) y de
+     subsectores (COD_DEAF, SUBSECTOR, ACTIVO), con plantilla descargable (.xlsx y .csv), validación completa y vista previa con
+     errores por fila. Si hay un error no se importa nada. El COD_DEAF existente actualiza (sin tocar "activo" ni el código guardado); nunca se borra.
+   - **Unidades y subsectores**: vista contrato por contrato, cada subsector editable en su fila; alta y desactivación (borrado
+     lógico); nombres únicos por contrato.
+   - En **Gestión de permisos**: rol Titular/Suplente por contrato, correo de la persona y una tabla "Correo del aprobador de cada contrato".
+6. **Dashboard.** El semáforo pasó de "2/0/1" a tres cifras con color y etiqueta ("2 contratos en rojo"), una leyenda de cómo se
+   calcula y filtro por color al hacer clic (también en Gabinete).
+
+### 11.2 Cambios al modelo de datos
+
+```
+contratos     + codDeaf, inspectorSuplente, correoAprobador   (inspectorNombre = IF titular, referencial)
+permisos/<u>  + rolesContrato {contratoId: titular|suplente}, correo
+problematicas + resolucion {texto, autorId, fecha, ts}, resolucionesPrevias[]
+notificaciones/<uid> (nuevo)  leidoTs
+```
+
+Backend (`backend\`): `Contrato.CodDeaf / InspectorSuplente / CorreoAprobador`, `UsuarioContrato.RolContrato`, `Usuario.Email` (correo
+de la persona), `Problematica.ResolucionTexto / ResolucionPorId` con CHECK (no se resuelve sin motivo), tablas `ProblematicaResolucionPrevia`
+(solo anexar) y `LecturaNotificacion`, índices únicos de COD_DEAF y de nombre de subsector por contrato. `repositorio.py`:
+`guardar_permiso(..., roles_contrato, email)`, `listar_contratos`, `mover_problematica(..., motivo)`, `listar_resoluciones_previas`,
+`listar_avisos`, `marcar_avisos_leidos`, `importar_contratos` e `importar_unidades` (atómicos: `ErrorCarga` con los errores por fila).
+`validar.py`: `correo`, `cod_deaf`, `sin_formula`. Historial oficial con desempate por `Id`.
+
+### 11.3 Decisiones
+
+- **Excel sin librería externa.** Se escribió un lector/escritor `.xlsx` mínimo (ZIP + XML) que usa `DecompressionStream` del navegador. Motivo:
+  funciona desde `file://` y sin internet (SheetJS desde cdnjs no funciona sin red; incrustarlo agregaría ~1 MB a un HTML de ~290 KB), y no hay
+  dependencias que auditar. Además ofrece CSV (UTF-8, separador `;` o `,`, con BOM) como alternativa. Lee solo la primera hoja, no
+  evalúa fórmulas ni macros (cada celda se toma como texto y pasa por la validación; una celda que empieza con `= + - @` se rechaza).
+  Límites: 2 MB, 500 filas con datos, 30 columnas.
+- **Correo del aprobador por contrato** (`contratos.correoAprobador`), no por persona: así lo leen todos los IF sin tocar `permisos`. Se edita
+  en Gestión de permisos y también viene en el Excel de contratos. El correo de **la persona** (`permisos.correo`) solo se usa para avisar al IF autor.
+- **Los validadores** ahora leen `permisos` (solo de los IF de su alcance) para obtener ese correo.
+- **Semáforo: la lógica no cambió**; la leyenda describe lo que hace de verdad (ver 11.6).
+- Un IF con más de 2 contratos no se bloquea (advertencia). En modo demo/local los roles Titular/Suplente son fijos (`ROLES_CONTRATO_DEMO`).
+- Pruebas: la ruta de Chrome es configurable con la variable `CHROME` (por defecto la de Windows, o `/opt/pw-browsers/...` en la nube).
+
+### 11.4 Límites (honestidad técnica)
+
+- **Importación en el artifact no es atómica**: el navegador escribe fila por fila; la validación sí es "todo o nada" antes de escribir, y
+  si una escritura falla a mitad de camino se informa cuántas filas quedaron (volver a subir deja las ya cargadas como "sin cambios").
+  El backend sí es atómico (transacción).
+- **Los correos de las personas** (`permisos.correo`) son legibles por cualquier Colaborador del artifact (la plataforma filtra por nivel, no
+  por contrato) y el correo del aprobador, por Gabinete. Mismo límite de la sección 9.7.
+- `notificaciones/<uid>` no puede impedir que otro Colaborador escriba el aviso leído de otra cuenta (límite de la plataforma); en el backend
+  la política `PoliticaPropia` lo impide.
+- El `mailto:` depende del programa de correo del equipo y de su límite de largo; no queda registro de que el correo se envió.
+- Lectura de `.xlsx` requiere `DecompressionStream` (Chrome/Edge actuales, Firefox 113+, Safari 16.4+); si no existe, se indica usar el CSV.
+- La unicidad de nombres en SQLite solo pliega ASCII a nivel de base; la validación de la aplicación sí compara con `casefold()`.
+  En SQL Server depende de la intercalación (ver pendiente del DBA).
+- Los problemáticas ya resueltas antes de la v10 no tienen motivo: la ficha dice "Sin motivo registrado". En el backend el CHECK exige motivo,
+  así que al migrar datos antiguos hay que cargar un texto (por ejemplo "Resuelta antes de registrar el motivo").
+
+### 11.5 Verificación (2026-10-02)
+
+- `pruebas\test_frontend.py`: **164/164** (Chrome headless). Partió en 61. Nuevo: banner y ancho (1.920 px y 390 px), Gantt y popup, avance con
+  historial, correos `mailto:` (destino, contenido y codificación), notificaciones, resolución de problemáticas con ficha, Titular/Suplente
+  y selector de contrato, jerarquía del validador y correo al IF, tabla de Gabinete (orden, límite, filtros, sin botones),
+  permisos con rol por contrato y correos, cargas por Excel/CSV (plantilla leída con `openpyxl`, archivos generados por `openpyxl` con
+  compresión y cadenas compartidas, errores por fila, fórmula, correos inválidos, CSV con `;`, archivos corruptos o muy grandes,
+  subsectores), semáforo con filtro y el entregable abierto desde otra carpeta (logo incrustado, sin errores de consola).
+- `pruebas\test_backend.py`: **40/40** (SQLite). Partió en 23. Nuevo: Titular/Suplente, correos, motivo de resolución (aplicación y base),
+  resoluciones previas, avisos leídos, cargas masivas atómicas, COD_DEAF único, nombres de subsector únicos.
+- `Bitacora de Obra.html` (autocontenido, ~290 KB; antes ~200 KB) abre desde otra carpeta con el logo y sin errores de JavaScript.
+- **No verificado**: SQL Server (`schema_sqlserver.sql`, no se ejecutó nada); archivos `.xlsx` guardados por **Excel de escritorio** y
+  Outlook real (solo `openpyxl` y el CSV); Firefox y Safari; el artifact publicado (sigue congelado en la v8).
+
+### 11.6 Decisiones que quedan para el dueño del proyecto
+
+1. **Semáforo.** La lógica actual: *rojo* = hito atrasado, alerta extrema publicada **o desvío de fechas de más de 30 días**; *ámbar* = desvío de
+   fechas (hasta 30 días) **o cualquier alerta publicada** que no sea extrema; *verde* = ninguna. Tu descripción omitía el desvío > 30 días y
+   hablaba de "alerta de riesgo alto" para el ámbar. Dejé la leyenda fiel a la lógica. ¿Cambiamos la lógica o la leyenda?
+2. **Correo del aprobador**: hoy es uno por contrato. ¿Prefieres uno por persona (varios aprobadores por contrato)?
+3. **Formato del COD_DEAF**: acepto letras, números y `. _ - /` hasta 40 caracteres. Confírmalo con códigos reales.
+4. **Lector de Excel propio vs. SheetJS**: si prefieres la librería estándar (más compatible con archivos raros), se puede incrustar a costa de ~1 MB.
+5. **Línea base de hitos por Excel**: no estaba en el encargo; hoy los hitos de línea base se cargan uno por uno en Configuración.
+6. **Gantt de solo lectura** para Validador/Gabinete: hoy solo el IF lo ve (con edición); los demás tienen el desglose de cronograma de cada tarjeta.
+7. **Importación atómica** en el artifact no es posible; solo en el backend. ¿Basta con el aviso actual?
+8. **Datos antiguos sin motivo de resolución** al migrar al backend (ver 11.4).
+

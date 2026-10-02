@@ -838,6 +838,43 @@ def escenario_local(p):
         browser.close()
 
 
+def escenario_entregable(p):
+    print('\nG. Entregable autocontenido "Bitacora de Obra.html" abierto desde otra carpeta')
+    import shutil
+    import tempfile
+    origen = AQUI.parent / 'frontend' / 'Bitacora de Obra.html'
+    check('El entregable existe y está regenerado (contiene la versión v10: Gantt y semáforo)', origen.exists() and 'js-g-hito' in origen.read_text(encoding='utf-8') and 'sem-fig' in origen.read_text(encoding='utf-8'))
+    carpeta = pathlib.Path(tempfile.mkdtemp(prefix='bitacora_otra_'))
+    copia = carpeta / 'Bitacora de Obra.html'
+    shutil.copy(origen, copia)
+    browser = p.chromium.launch(executable_path=CHROME, headless=True)
+    page = browser.new_page(viewport={'width': 1280, 'height': 900})
+    errores, consola = [], []
+    page.on('pageerror', lambda e: errores.append(str(e)))
+    page.on('console', lambda m: consola.append(m.text) if m.type == 'error' else None)
+    # Las tipografías de Google Fonts pueden no cargar sin internet: no es un fallo de la herramienta.
+    page.route('**/fonts.googleapis.com/**', lambda r: r.abort())
+    try:
+        page.goto(copia.as_uri())
+        page.wait_for_selector('#gatePerfil', state='visible', timeout=15000)
+        check('El logo de la pantalla de ingreso carga (incrustado)', page.evaluate("document.querySelector('.gate-logo').complete && document.querySelector('.gate-logo').naturalWidth > 0"))
+        check('Es un solo archivo: los logos van en base64, sin rutas relativas a assets/', 'src="assets/' not in copia.read_text(encoding='utf-8') and copia.read_text(encoding='utf-8').count('data:image/png;base64,') == 2)
+        page.select_option('#gateRol', 'admin')
+        ingresar(page)
+        check('El logo del banner carga y mide 64 px de alto', page.evaluate("document.querySelector('.appbar-logo').naturalWidth > 0 && Math.round(document.querySelector('.appbar-logo').getBoundingClientRect().height) === 64"))
+        for t in ('permisos', 'config', 'bandeja'):
+            tab(page, t)
+        page.select_option('#verComo', 'if')
+        page.wait_for_timeout(300)
+        tab(page, 'hitos')
+        check('Gantt y navegación funcionan desde el archivo suelto', page.locator('.js-g-hito').count() > 0)
+        consola = [m for m in consola if 'fonts.googleapis' not in m and 'ERR_FAILED' not in m]
+        check('Sin errores de JavaScript ni de consola', not errores and not consola, errores + consola)
+    finally:
+        browser.close()
+        shutil.rmtree(carpeta, ignore_errors=True)
+
+
 if __name__ == '__main__':
     with sync_playwright() as p:
         escenario_if(p)
@@ -848,6 +885,7 @@ if __name__ == '__main__':
         escenario_cargas_admin(p)
         escenario_sin_perfil(p)
         escenario_local(p)
+        escenario_entregable(p)
     (AQUI / '_tmp_prueba.html').unlink(missing_ok=True)
     fallas = [r for r in resultados if not r[1]]
     print(f'\n{len(resultados) - len(fallas)}/{len(resultados)} pruebas OK')
