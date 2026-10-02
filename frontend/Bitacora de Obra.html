@@ -81,8 +81,8 @@
   .vercomo select option{ color:#0E1B2E; }
   .btn-ghost-dark{ font:inherit; font-weight:600; font-size:12.5px; padding:8px 14px; border-radius:7px; background:rgba(255,255,255,.08); color:#EDF1F7; border:1px solid rgba(255,255,255,.2); cursor:pointer; }
   .btn-ghost-dark:hover{ background:rgba(255,255,255,.16); }
-  .tabsd{ display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; padding-top:4px; border-top:1px solid rgba(255,255,255,.1); }
-  .tabd{ font:inherit; font-size:13.5px; font-weight:600; color:rgba(237,241,247,.7); background:none; border:none; padding:13px 20px; border-radius:10px 10px 0 0; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:7px; transition:background .15s, color .15s; }
+  .tabsd{ display:flex; flex-wrap:wrap; gap:4px; padding-top:4px; border-top:1px solid rgba(255,255,255,.1); }
+  .tabd{ font:inherit; font-size:13.5px; font-weight:600; color:rgba(237,241,247,.7); background:none; border:none; padding:12px 16px; border-radius:10px 10px 0 0; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:7px; transition:background .15s, color .15s; }
   .tabd:hover{ color:#fff; background:rgba(255,255,255,.06); }
   .tabd.active{ background:var(--bg); color:var(--ink); }
   .tab-badge{ background:var(--bad); color:#fff; border-radius:999px; font-size:10.5px; font-weight:700; padding:1px 7px; }
@@ -271,12 +271,11 @@
   .check-row-group{ display:flex; flex-wrap:wrap; gap:8px; }
   .check-row{ display:flex; align-items:center; gap:6px; font-size:12.5px; background:var(--surface-2); border:1px solid var(--line); padding:6px 10px; border-radius:999px; margin:0; }
   .tag-input{ border:1px solid var(--line); border-radius:8px; padding:6px 8px; background:var(--surface); display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
-  .tag-input input{ border:none; flex:1; min-width:110px; padding:4px 2px; }
+  .tag-input input{ border:none; flex:1 1 200px; min-width:200px; padding:4px 2px; }
   .tag-input input:focus{ outline:none; }
   .tag-chip{ display:inline-flex; align-items:center; gap:4px; background:var(--accent-soft); color:var(--accent-ink); border-radius:999px; padding:3px 4px 3px 10px; font-size:12px; font-weight:600; white-space:nowrap; }
   .tag-remove{ background:none; border:none; cursor:pointer; color:inherit; font-size:14px; line-height:1; padding:2px 4px; }
-  .kanban{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; align-items:start; }
-  @media (max-width:760px){ .kanban{ grid-template-columns:1fr; } }
+  .kanban{ display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap:12px; align-items:start; }
   .kcol{ background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius); padding:10px; min-height:80px; transition:background .12s, outline .12s; }
   .kcol.drag-over{ outline:2px dashed var(--accent); outline-offset:-2px; background:var(--accent-soft); }
   .kcol-head{ display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); padding:4px 6px 10px; }
@@ -296,8 +295,8 @@
   .bitacora-list{ display:flex; flex-direction:column; gap:6px; max-height:170px; overflow-y:auto; }
   .bit-entry{ font-size:11.5px; line-height:1.4; background:var(--surface-2); border-radius:6px; padding:6px 8px; white-space:pre-wrap; }
   .bit-meta{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; font-size:10px; color:var(--ink-soft); margin-bottom:2px; white-space:normal; }
-  .bitacora-add{ display:flex; gap:6px; }
-  .bitacora-add input{ flex:1; }
+  .bitacora-add{ display:flex; gap:6px; flex-wrap:wrap; }
+  .bitacora-add input{ flex:1; min-width:160px; }
   .kcard-foot{ display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:10.5px; color:var(--ink-soft); }
   .kcard-foot select{ font-size:11px; padding:4px 6px; width:auto; }
 
@@ -411,7 +410,7 @@
   .perm-resumen{ font-size:13px; }
   .perm-nombres{ font-size:11.5px; color:var(--ink-soft); margin:3px 0 7px; max-width:34ch; line-height:1.4; }
   .mc-barra{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
-  .mc-barra input[type="search"]{ flex:1; min-width:220px; }
+  .mc-barra input[type="search"]{ flex:1 1 100%; min-width:0; }
   .mc-acciones{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
   .mc-lista{ border:1px solid var(--line); border-radius:10px; max-height:46vh; overflow-y:auto; background:var(--surface); }
   .mc-fila{ display:flex; gap:10px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line); margin:0; font-weight:500; cursor:pointer; }
@@ -427,7 +426,8 @@
   .tareas-lista{ list-style:none; margin:0 0 8px; padding:0; display:flex; flex-direction:column; gap:6px; counter-reset:t; }
   .tarea-fila{ display:flex; gap:8px; align-items:center; counter-increment:t; }
   .tarea-fila::before{ content:counter(t); flex:none; width:22px; height:22px; border-radius:50%; background:var(--accent-soft); color:var(--accent-ink); font-size:11.5px; font-weight:700; display:flex; align-items:center; justify-content:center; }
-  .tarea-fila input[type="text"]{ flex:1; }
+  .tarea-fila textarea{ flex:1; }
+  textarea.autoalto{ resize:none; min-height:0; overflow:hidden; line-height:1.4; }
   .tarea-fila .tarea-hecho{ flex:none; }
   .tarea-add{ display:flex; gap:8px; flex-wrap:wrap; }
   .tarea-add input{ flex:1; min-width:200px; }
@@ -454,6 +454,11 @@
   .uc > summary::before{ content:"▸"; color:var(--ink-soft); }
   .uc[open] > summary::before{ content:"▾"; }
   .uc-body{ padding:0 16px 14px; }
+  .cf-lista{ display:flex; flex-direction:column; gap:10px; }
+  .cf-cab{ display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; }
+  .cf-cab .field{ margin-bottom:0; min-width:220px; }
+  .cf-campos{ display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:0 14px; margin-top:12px; }
+  .cf-campos .field{ margin-bottom:10px; }
   .peso-in{ width:96px !important; text-align:right; }
   .peso-res{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between; margin-top:10px; }
   .peso-suma{ font-size:12.5px; font-weight:700; }
@@ -469,12 +474,83 @@
   .notif-panel{ position:absolute; right:0; top:calc(100% + 10px); width:min(440px, calc(100vw - 32px)); max-height:70vh; overflow-y:auto; background:var(--surface); color:var(--ink); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow-hover); z-index:40; text-align:left; }
   .notif-head{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--surface); }
   .notif-head strong{ font-size:14px; }
+  .notif-acciones{ display:flex; gap:8px; flex-wrap:wrap; padding:10px 16px; border-bottom:1px solid var(--line); }
   .notif-sec{ padding:10px 16px 4px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-soft); }
   .notif-item{ padding:10px 16px; border-bottom:1px solid var(--line); font-size:12.5px; line-height:1.45; display:flex; flex-direction:column; gap:3px; }
   .notif-item.nueva{ background:var(--accent-soft); }
   .notif-item .n-top{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
   .notif-item .n-com{ background:var(--bad-soft); border-radius:8px; padding:6px 9px; white-space:pre-wrap; overflow-wrap:anywhere; }
   .notif-vacio{ padding:14px 16px; font-size:12.5px; color:var(--ink-soft); }
+
+  /* =====================================================================
+     MODO CELULAR (≤ 720 px): nada se corta ni obliga a deslizar de lado.
+     - Banner no fijo y compacto; pestañas en varias líneas.
+     - Toda tabla se muestra como tarjetas "etiqueta: valor" (las etiquetas
+       salen de los encabezados: ver etiquetarTablas en el script).
+     - El Gantt se muestra como lista por sector (renderGantt).
+     ===================================================================== */
+  @media (max-width:720px){
+    .appbar{ position:static; }
+    .appbar-inner{ padding-top:12px; }
+    .appbar-top{ padding-bottom:10px; }
+    .appbar-crumb{ font-size:10.5px; }
+    .appbar-side{ gap:8px; }
+    .vercomo{ width:100%; } .vercomo select{ flex:1; min-width:0; }
+    .appbar-who{ flex:1 1 auto; font-size:12px; }
+    .appbar-acciones{ gap:6px; }
+    .btn-ghost-dark{ padding:7px 10px; font-size:12px; }
+    .tabsd{ flex-wrap:wrap; overflow:visible; gap:6px; padding:8px 0 10px; }
+    .tabd{ padding:8px 12px; border-radius:999px; font-size:12.5px; background:rgba(255,255,255,.08); white-space:normal; }
+    .tabd.active{ background:var(--bg); }
+    .content-wrap{ padding-top:18px; }
+    .panel-head h2{ font-size:18px; }
+    .card{ padding:14px; }
+
+
+    .cmp{ grid-template-columns:minmax(0,1fr); }
+    .cmp-arrow{ justify-content:center; transform:rotate(90deg); }
+    .rg-filtros{ grid-template-columns:minmax(0,1fr); }
+    .kcard-foot{ flex-wrap:wrap; }
+    .modal-back{ padding:10px 8px; }
+    .modal{ padding:18px 14px; border-radius:14px; }
+    .modal h3{ font-size:16.5px; padding-right:28px; }
+    .ident strong{ font-size:16px; } .ident div{ font-size:14px; }
+    .sem-figs{ gap:6px; } .sem-fig{ padding:8px; } .sem-n{ font-size:24px; } .sem-t{ font-size:11px; }
+    .uc > summary{ padding:12px; }
+    .uc-body{ padding:0 12px 12px; }
+    .peso-res{ flex-direction:column; align-items:stretch; }
+    .notif-panel{ position:fixed; left:8px; right:8px; top:8px; width:auto; max-height:85vh; }
+  }
+
+  /* Tabla que no cabe (o con campos apretados) → tarjetas "etiqueta: valor". La clase la pone ajustarTablas(). */
+  .table-wrap.tarjetas{ overflow:visible; border:none; background:transparent; border-radius:0; box-shadow:none; }
+  .table-wrap.tarjetas table{ min-width:0 !important; width:100%; }
+  .table-wrap.tarjetas thead{ display:none; }
+  .table-wrap.tarjetas tbody, .table-wrap.tarjetas tr, .table-wrap.tarjetas td{ display:block; width:100%; }
+  .table-wrap.tarjetas tr{ background:var(--surface); border:1px solid var(--line); border-radius:10px; margin-bottom:10px; padding:6px 12px; box-shadow:var(--shadow); }
+  .table-wrap.tarjetas tbody tr:hover{ background:var(--surface); }
+  .table-wrap.tarjetas td{ display:grid; grid-template-columns:minmax(88px, 34%) minmax(0,1fr); gap:10px; align-items:center; padding:7px 0; border-bottom:1px dashed var(--line); text-align:left !important; white-space:normal !important; overflow-wrap:anywhere; font-size:13px; }
+  .table-wrap.tarjetas td:last-child{ border-bottom:none; }
+  .table-wrap.tarjetas td::before{ content:attr(data-label); font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); overflow-wrap:anywhere; }
+  .table-wrap.tarjetas td[data-label=""]{ grid-template-columns:minmax(0,1fr); }
+  .table-wrap.tarjetas td:has(input:not([type="checkbox"]):not([type="radio"]), select, textarea){ grid-template-columns:minmax(0,1fr); gap:4px; }   /* campos editables: etiqueta arriba, campo a lo ancho */
+  .table-wrap.tarjetas td[data-label=""]::before{ display:none; }
+  .table-wrap.tarjetas td input:not([type="checkbox"]):not([type="radio"]), .table-wrap.tarjetas td select{ width:100% !important; min-width:0 !important; }
+  .table-wrap.tarjetas td .peso-in{ width:100% !important; text-align:left; }
+  .table-wrap.tarjetas tr.fila-error{ background:var(--bad-soft); }
+  .table-wrap.tarjetas tr.fila-error td{ background:transparent; }
+
+  /* lista del Gantt (celular) */
+  .gl-grupo{ margin-bottom:14px; }
+  .gl-titulo{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-weight:700; font-size:13.5px; margin:0 0 8px; }
+  .gl-hito{ display:flex; flex-direction:column; gap:6px; width:100%; text-align:left; font:inherit; color:inherit; background:var(--surface); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:10px; padding:10px 12px; margin-bottom:8px; cursor:pointer; }
+  .gl-hito.cumplido{ border-left-color:var(--good); } .gl-hito.desvio{ border-left-color:var(--warn); } .gl-hito.atrasado{ border-left-color:var(--bad); }
+  .gl-hito:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .gl-top{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .gl-top strong{ font-size:14px; overflow-wrap:anywhere; }
+  .gl-fechas{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px; font-size:11.5px; color:var(--ink-soft); }
+  .gl-fechas b{ display:block; color:var(--ink); font-size:12.5px; font-family:'IBM Plex Mono', monospace; }
+  .gl-tocar{ font-size:11.5px; font-weight:700; color:var(--accent); }
 
   .toast{ position:fixed; left:50%; bottom:24px; transform:translate(-50%,0); background:var(--ink); color:var(--bg); font-size:13px; font-weight:600; padding:10px 18px; border-radius:999px; box-shadow:var(--shadow); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:50; max-width:calc(100vw - 32px); text-align:center; }
   .toast.show{ opacity:1; transform:translate(-50%,-6px); }
@@ -652,7 +728,7 @@
           <div class="btn-row" style="justify-content:flex-start;"><button class="btn secondary small js-plantilla" data-tipo="contratos" data-formato="xlsx" type="button">Descargar plantilla (.xlsx)</button><button class="btn secondary small js-plantilla" data-tipo="contratos" data-formato="csv" type="button">Descargar plantilla (.csv)</button><button class="btn small js-subir" data-tipo="contratos" type="button">Subir Excel / CSV</button><input type="file" id="impContratosFile" data-tipo="contratos" accept=".xlsx,.csv" hidden aria-label="Archivo de contratos"></div>
           <div id="impContratosBox"></div>
         </div>
-        <div class="table-wrap" style="margin-top:12px;"><table><thead><tr><th>COD_DEAF</th><th>Contrato</th><th>Nombra sus unidades como</th><th>IF titular (referencial)</th><th>Correo IF titular</th><th>IF suplente (referencial)</th><th>Correo IF suplente</th><th>Correo del aprobador</th><th>Activo</th><th></th></tr></thead><tbody id="cfContratos"></tbody></table></div>
+        <div class="cf-lista" id="cfContratos" style="margin-top:12px;"></div>
         <div style="margin-top:10px;"><button class="btn secondary small" type="button" id="btnAddContrato">+ Agregar contrato</button></div>
         <p class="section-title">Peso de cada contrato en el avance global</p>
         <p class="helper">El % de avance global es un promedio <strong>ponderado</strong> por estos pesos (deben sumar 100% entre los contratos activos). Mientras a algún contrato le falte su peso, el sistema usa promedio simple y lo indica.</p>
@@ -673,7 +749,7 @@
       <section id="panel-registro" class="panel">
         <div class="panel-head"><div><h2>Registro de cambios</h2><p>Quién modificó qué, y cuándo. Solo se agrega: nada se edita ni se borra desde la herramienta. Cada fila lleva una huella (hash) que permite detectar si fue alterada.</p></div><button class="btn secondary" type="button" id="rgCsv">Exportar CSV</button></div>
         <div class="card rg-filtros">
-          <div class="field"><label for="rgQ">Buscar</label><input id="rgQ" type="search" placeholder="Texto del detalle, contrato, entidad…" autocomplete="off"></div>
+          <div class="field"><label for="rgQ">Buscar</label><input id="rgQ" type="search" placeholder="Buscar…" autocomplete="off"></div>
           <div class="field"><label for="rgEntidad">Qué se modificó</label><select id="rgEntidad"></select></div>
           <div class="field"><label for="rgActor">Quién</label><select id="rgActor"></select></div>
           <div class="field"><label for="rgDesde">Desde</label><input id="rgDesde" type="date"></div>
@@ -694,21 +770,21 @@
           <form id="formProblema" novalidate>
             <div class="row2">
               <div class="field"><label for="pbUnidad">Unidad afectada</label><select id="pbUnidad"></select></div>
-              <div class="field"><label for="pbTitulo">Título</label><input id="pbTitulo" type="text" maxlength="200" placeholder="Resumen en pocas palabras"></div>
+              <div class="field"><label for="pbTitulo">Título</label><textarea id="pbTitulo" class="autoalto" rows="1" maxlength="200" placeholder="Resumen en pocas palabras"></textarea></div>
             </div>
             <div class="field"><label for="pbDescripcion">Qué es el problema</label><textarea id="pbDescripcion" maxlength="4000"></textarea></div>
             <div class="row2">
               <div class="field"><label for="pbImpacto">Cómo afecta al contrato</label><textarea id="pbImpacto" maxlength="4000"></textarea></div>
               <div class="field">
-                <label for="pbActoresInput">Actores relevantes</label>
-                <div class="tag-input" data-tags="nuevo"><div class="tags-chips" style="display:contents;"></div><input type="text" class="tags-in" id="pbActoresInput" maxlength="80" placeholder="Escribe un actor y presiona Enter (ej.: Municipalidad)"></div>
+                <label for="pbActoresInput">Actores relevantes <span class="helper" style="font-weight:400;">(escribe y presiona Enter)</span></label>
+                <div class="tag-input" data-tags="nuevo"><div class="tags-chips" style="display:contents;"></div><input type="text" class="tags-in" id="pbActoresInput" maxlength="80" placeholder="Ej.: Municipalidad"></div>
               </div>
             </div>
             <div class="row2">
               <div class="field">
                 <label for="pbTareaInput">Checklist: acciones para subsanar</label>
-                <p class="helper" style="margin:0 0 6px;">Agrega una a una las acciones que hay que cumplir. Después las marcas como hechas en la tarjeta.</p>
-                <div class="tareas-ed" data-tareas="nuevo"><ol class="tareas-lista"></ol><div class="tarea-add"><input type="text" class="tarea-in" id="pbTareaInput" maxlength="300" placeholder="Escribe una acción y presiona Enter o «Agregar»"><button type="button" class="btn secondary small js-tarea-add">+ Agregar acción</button></div></div>
+                <p class="helper" style="margin:0 0 6px;">Agrega una a una las acciones que hay que cumplir (Enter o «Agregar acción»). Después las marcas como hechas en la tarjeta.</p>
+                <div class="tareas-ed" data-tareas="nuevo"><ol class="tareas-lista"></ol><div class="tarea-add"><input type="text" class="tarea-in" id="pbTareaInput" maxlength="300" placeholder="Nueva acción…"><button type="button" class="btn secondary small js-tarea-add">+ Agregar acción</button></div></div>
               </div>
               <div class="field"><label for="pbRiesgo">Nivel de riesgo</label><select id="pbRiesgo"><option value="Extremo">Extremo</option><option value="Alto">Alto</option><option value="Medio" selected>Medio</option><option value="Bajo">Bajo</option></select></div>
             </div>
@@ -2303,6 +2379,7 @@
   }
   function renderAll(){
     if(!Session.role) return;
+    programarTablas();
     renderTabs();
     renderNotif();
     var t = Session.tab;
@@ -2484,9 +2561,11 @@
   /* ---- carta Gantt de hitos (datos oficiales) ---- */
   var MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
   function dnum(iso){ return Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 86400000; }
+  function esCelular(){ return !!(window.matchMedia && window.matchMedia('(max-width:720px)').matches); }
   function renderGantt(){
     renderSelectorContrato('#htContrato', '#htCtrWrap');
     var cid = contratoActivoId(), wrap = $('#ganttWrap'), hs = cid ? hitosDe(cid) : [];
+    if(hs.length && esCelular()) return renderGanttLista(wrap, hs);
     if(!hs.length){ setHTML(wrap, html`<div class="empty-state">${cid ? 'Este contrato aún no tiene hitos en su línea base. Pídele al administrador que los cargue.' : 'No tienes contratos asignados.'}</div>`); return; }
     var hoy = todayISO(), fechas = [hoy];
     hs.forEach(function(h){ var o = hitoOficial(h) || {}; [h.fechaContractual, o.fechaVigente, o.fechaReal].forEach(function(f){ if(cleanDate(f)) fechas.push(f); }); });
@@ -2514,6 +2593,21 @@
       var uk = k === '_contrato' ? null : findIn(State.unidades, k);
       return html`<div class="g-group"><span class="g-lbl">${k === '_contrato' ? 'Todo el contrato' : unidadNombre(k)}${uk ? (uk.peso !== null ? html`<span title="Peso de este sector en el avance del contrato">${pill('accent', 'peso ' + fmtPeso(uk.peso))}</span>` : html`<span title="El administrador aún no define su peso (Configuración → Unidades y subsectores)">${pill('muted', 'sin peso')}</span>`) : ''}</span></div>${lista.map(filaGantt)}`;
     })}</div></div>`);
+  }
+
+  function renderGanttLista(wrap, hs){
+    var grupos = Object.create(null), orden = [];
+    hs.forEach(function(h){ var k = h.unidadId || '_contrato'; if(!grupos[k]){ grupos[k] = []; orden.push(k); } grupos[k].push(h); });
+    orden.sort(function(a, b){ return (a === '_contrato' ? '' : unidadNombre(a)).localeCompare(b === '_contrato' ? '' : unidadNombre(b), 'es'); });
+    setHTML(wrap, html`<div class="g-lista">${orden.map(function(k){
+      var uk = k === '_contrato' ? null : findIn(State.unidades, k);
+      var lista = grupos[k].slice().sort(function(x, y){ var ix = RADAR.indexOf(x.tipo), iy = RADAR.indexOf(y.tipo); ix = ix < 0 ? 99 : ix; iy = iy < 0 ? 99 : iy; return ix - iy || ((fechaObjetivo(x) || '') < (fechaObjetivo(y) || '') ? -1 : 1); });
+      return html`<div class="gl-grupo"><div class="gl-titulo">${k === '_contrato' ? 'Todo el contrato' : unidadNombre(k)}${uk ? (uk.peso !== null ? pill('accent', 'peso ' + fmtPeso(uk.peso)) : pill('muted', 'sin peso')) : ''}</div>${lista.map(function(h){
+        var o = hitoOficial(h) || {}, e = hitoEstado(h), vig = o.fechaVigente || h.fechaContractual, d = diffDias(h.fechaContractual, o.fechaReal || vig);
+        var pend = pendienteDe('fecha_programada', h.id) || pendienteDe('fecha_real', h.id);
+        return html`<button type="button" class="gl-hito js-g-hito ${e.key}" data-hid="${h.id}"><span class="gl-top"><strong>${h.nombre || h.tipo}</strong>${pill(e.cls, e.label)}${d ? pill(d > 0 ? 'bad' : 'good', (d > 0 ? '+' : '') + d + ' d') : ''}${pend ? pill('warn', 'Propuesta en revisión') : ''}</span><span class="hist-who">${h.tipo}</span><span class="gl-fechas"><span>Contractual<b>${fmtDate(h.fechaContractual)}</b></span><span>Programada<b>${fmtDate(vig)}</b></span><span>Real<b>${fmtDate(o.fechaReal)}</b></span></span><span class="gl-tocar">Tocar para modificar ›</span></button>`;
+      })}</div>`;
+    })}</div>`);
   }
 
   /* ---- ventana emergente (modal) ---- */
@@ -2573,22 +2667,22 @@
     var destinoActual = p.unidadId || ('contrato:' + p.contratoId);
     abrirModal(html`<h3 id="modalTitulo">Editar ficha</h3>${identBloque(p.contratoId, p.unidadId ? unidadNombre(p.unidadId) : 'Todo el contrato', 'Problemática', p.titulo)}<form id="formEditar" novalidate>
       <div class="row2"><div class="field"><label for="mpUnidad">Unidad afectada</label><select id="mpUnidad"><option value="${'contrato:' + p.contratoId}"${destinoActual === 'contrato:' + p.contratoId ? ' selected' : ''}>Todo el contrato</option>${unidadesDe(p.contratoId).map(function(u){ return html`<option value="${u.id}"${u.id === destinoActual ? ' selected' : ''}>${u.nombre}</option>`; })}</select></div>
-        <div class="field"><label for="mpTitulo">Título</label><input id="mpTitulo" type="text" maxlength="200" value="${p.titulo}"></div></div>
+        <div class="field"><label for="mpTitulo">Título</label><textarea id="mpTitulo" class="autoalto" rows="1" maxlength="200">${p.titulo}</textarea></div></div>
       <div class="field"><label for="mpDescripcion">Qué es el problema</label><textarea id="mpDescripcion" maxlength="4000">${p.descripcion}</textarea></div>
       <div class="field"><label for="mpImpacto">Cómo afecta al contrato</label><textarea id="mpImpacto" maxlength="4000">${p.impacto}</textarea></div>
-      <div class="field"><label for="mpActoresInput">Actores relevantes</label><div class="tag-input" data-tags="editar"><div class="tags-chips" style="display:contents;"></div><input type="text" class="tags-in" id="mpActoresInput" maxlength="80" placeholder="Escribe un actor y presiona Enter"></div></div>
-      <div class="field"><label for="mpTareaInput">Checklist: acciones para subsanar</label><div class="tareas-ed" data-tareas="editar"><ol class="tareas-lista"></ol><div class="tarea-add"><input type="text" class="tarea-in" id="mpTareaInput" maxlength="300" placeholder="Escribe una acción y presiona Enter o «Agregar»"><button type="button" class="btn secondary small js-tarea-add">+ Agregar acción</button></div></div></div>
+      <div class="field"><label for="mpActoresInput">Actores relevantes <span class="helper" style="font-weight:400;">(escribe y presiona Enter)</span></label><div class="tag-input" data-tags="editar"><div class="tags-chips" style="display:contents;"></div><input type="text" class="tags-in" id="mpActoresInput" maxlength="80" placeholder="Ej.: Municipalidad"></div></div>
+      <div class="field"><label for="mpTareaInput">Checklist: acciones para subsanar <span class="helper" style="font-weight:400;">(Enter o «Agregar acción»)</span></label><div class="tareas-ed" data-tareas="editar"><ol class="tareas-lista"></ol><div class="tarea-add"><input type="text" class="tarea-in" id="mpTareaInput" maxlength="300" placeholder="Nueva acción…"><button type="button" class="btn secondary small js-tarea-add">+ Agregar acción</button></div></div></div>
       <div class="row2"><div class="field"><label for="mpRiesgo">Nivel de riesgo</label><select id="mpRiesgo">${RIESGOS.map(function(r){ return html`<option value="${r.key}"${r.key === p.nivelRiesgo ? ' selected' : ''}>${r.key}</option>`; })}</select></div>
         <div class="field"><label for="mpVencimiento">Fecha de vencimiento (opcional)</label><input id="mpVencimiento" type="date" value="${p.fechaVencimiento || ''}"></div></div>
       <div class="field"><label>Requiere ayuda de</label><div class="check-row-group">${ESCALAMIENTOS.map(function(x){ return html`<label class="check-row"><input type="checkbox" name="mpEsc" value="${x}"${p.escalamiento.indexOf(x) !== -1 ? ' checked' : ''}> ${x}</label>`; })}</div></div>
       <p class="helper">Los cambios quedan registrados (quién, cuándo y el antes → después) y se agrega una nota automática a la bitácora de la ficha.</p>
       <div class="btn-row"><button class="btn secondary js-modal-cerrar" type="button">Cancelar</button><button class="btn" type="submit">Guardar cambios</button></div></form>`, true);
-    renderTagsEd('editar'); renderTareasEd('editar');
+    renderTagsEd('editar'); renderTareasEd('editar'); ajustarAltos($('#modalBody'));
   }
   function abrirModalChecklist(p){
     ED.editar = { tags:[], tareas: p.checklist.map(function(t){ return { texto:t.texto, hecho:t.hecho }; }) };
     State.modal = { k:'checklist', pid:p.id };
-    abrirModal(html`<h3 id="modalTitulo">Editar checklist</h3>${identBloque(p.contratoId, p.unidadId ? unidadNombre(p.unidadId) : 'Todo el contrato', 'Problemática', p.titulo)}<form id="formChecklist" novalidate><p class="helper">Cambia el texto de una acción, márcala como hecha, quítala con × o agrega nuevas. Queda una nota en la bitácora de la ficha y el cambio se anota en el Registro de cambios.</p><div class="tareas-ed" data-tareas="editar"><ol class="tareas-lista"></ol><div class="tarea-add"><input type="text" class="tarea-in" id="mcTareaInput" maxlength="300" placeholder="Escribe una acción y presiona Enter o «Agregar»"><button type="button" class="btn secondary small js-tarea-add">+ Agregar acción</button></div></div><div class="btn-row" style="margin-top:14px;"><button class="btn secondary js-modal-cerrar" type="button">Cancelar</button><button class="btn" type="submit">Guardar checklist</button></div></form>`);
+    abrirModal(html`<h3 id="modalTitulo">Editar checklist</h3>${identBloque(p.contratoId, p.unidadId ? unidadNombre(p.unidadId) : 'Todo el contrato', 'Problemática', p.titulo)}<form id="formChecklist" novalidate><p class="helper">Cambia el texto de una acción, márcala como hecha, quítala con × o agrega nuevas. Queda una nota en la bitácora de la ficha y el cambio se anota en el Registro de cambios.</p><div class="tareas-ed" data-tareas="editar"><ol class="tareas-lista"></ol><div class="tarea-add"><input type="text" class="tarea-in" id="mcTareaInput" maxlength="300" placeholder="Nueva acción…"><button type="button" class="btn secondary small js-tarea-add">+ Agregar acción</button></div></div><div class="btn-row" style="margin-top:14px;"><button class="btn secondary js-modal-cerrar" type="button">Cancelar</button><button class="btn" type="submit">Guardar checklist</button></div></form>`);
     renderTareasEd('editar');
   }
   function abrirModalResolver(p){
@@ -2624,7 +2718,7 @@
     $('#notifPanel').hidden = !State.notifAbierto;
     if(!State.notifAbierto) return;
     function sec(titulo, lista, cls, vacio){ return html`<div class="notif-sec">${titulo} (${lista.length})</div>${lista.length ? lista.slice(0, 20).map(function(s){ return itemAviso(s, cls); }) : html`<div class="notif-vacio">${vacio}</div>`}`; }
-    setHTML($('#notifPanel'), html`<div class="notif-head"><strong>Notificaciones</strong><span><button type="button" class="btn secondary small" id="notifLeidas"${a.nuevas ? '' : ' disabled'}>Marcar todo como leído</button> <button type="button" class="btn small" id="notifIr">Ir a Mis solicitudes</button></span></div>${sec('Rechazadas', a.rech, 'bad', 'Ninguna rechazada.')}${sec('Aprobadas', a.apr, 'good', 'Todavía no hay aprobadas.')}${sec('Pendientes de revisión', a.pend, 'warn', 'No tienes solicitudes en revisión.')}`);
+    setHTML($('#notifPanel'), html`<div class="notif-head"><strong>Notificaciones</strong><button type="button" class="modal-x" id="notifCerrar" aria-label="Cerrar notificaciones" style="position:static;">×</button></div><div class="notif-acciones"><button type="button" class="btn secondary small" id="notifLeidas"${a.nuevas ? '' : ' disabled'}>Marcar todo como leído</button><button type="button" class="btn small" id="notifIr">Ir a Mis solicitudes</button></div>${sec('Rechazadas', a.rech, 'bad', 'Ninguna rechazada.')}${sec('Aprobadas', a.apr, 'good', 'Todavía no hay aprobadas.')}${sec('Pendientes de revisión', a.pend, 'warn', 'No tienes solicitudes en revisión.')}`);
   }
 
   /* ---- solicitudes (IF) ---- */
@@ -2887,9 +2981,10 @@
 
   /* ---- configuración (admin) ---- */
   function renderConfig(){
-    setHTML($('#cfContratos'), contratos.map(function(c){
-      return html`<tr data-id="${c.id}"><td><input type="text" class="f-coddeaf mono" maxlength="${LIM.codDeaf}" value="${c.codDeaf}" placeholder="COD_DEAF" aria-label="COD_DEAF" style="min-width:110px;"></td><td><input type="text" class="f-nombre" maxlength="${LIM.nombre}" value="${c.nombre}" aria-label="Nombre del contrato" style="min-width:200px;"></td><td><input type="text" class="f-unidadlabel" maxlength="${LIM.label}" value="${c.unidadLabel}" placeholder="Sector / Hospital / Aeropuerto / Cárcel" aria-label="Nombre de sus unidades"></td><td><input type="text" class="f-inspector" maxlength="${LIM.inspector}" value="${c.inspectorNombre}" aria-label="IF titular"></td><td><input type="email" class="f-cif-t" maxlength="${LIM.correo}" value="${c.correoIfTitular}" placeholder="if.titular@dominio.cl" aria-label="Correo del IF titular" style="min-width:180px;"></td><td><input type="text" class="f-suplente" maxlength="${LIM.inspector}" value="${c.inspectorSuplente}" aria-label="IF suplente"></td><td><input type="email" class="f-cif-s" maxlength="${LIM.correo}" value="${c.correoIfSuplente}" placeholder="if.suplente@dominio.cl" aria-label="Correo del IF suplente" style="min-width:180px;"></td><td><input type="email" class="f-correo-c" maxlength="${LIM.correo}" value="${c.correoAprobador}" placeholder="aprobador@dominio.cl" aria-label="Correo del aprobador" style="min-width:190px;"></td><td style="text-align:center;"><input type="checkbox" class="f-activo" aria-label="Activo"${c.activo ? ' checked' : ''}></td><td><button type="button" class="btn secondary small js-save">Guardar</button></td></tr>`;
-    }));
+    setHTML($('#cfContratos'), contratos.length ? contratos.map(function(c){
+      function campo(cls, etiqueta, valor, max, tipo, ph){ var id = 'cf-' + cls + '-' + c.id; return html`<div class="field"><label for="${id}">${etiqueta}</label><input id="${id}" type="${tipo || 'text'}" class="${cls}" maxlength="${max}" value="${valor}" placeholder="${ph || ''}"></div>`; }
+      return html`<article class="card cf-card" data-id="${c.id}"><div class="cf-cab"><div class="field" style="flex:1;"><label for="${'cf-nombre-' + c.id}">Contrato</label><input id="${'cf-nombre-' + c.id}" type="text" class="f-nombre" maxlength="${LIM.nombre}" value="${c.nombre}"></div><label class="check-row" style="align-self:flex-end;"><input type="checkbox" class="f-activo"${c.activo ? ' checked' : ''}> Activo</label><button type="button" class="btn small js-save" style="align-self:flex-end;">Guardar</button></div><div class="cf-campos">${campo('f-coddeaf mono', 'COD_DEAF', c.codDeaf, LIM.codDeaf, 'text', 'COD_DEAF')}${campo('f-unidadlabel', 'Nombra sus unidades como', c.unidadLabel, LIM.label, 'text', 'Sector / Hospital…')}${campo('f-correo-c', 'Correo del aprobador', c.correoAprobador, LIM.correo, 'email', 'aprobador@dominio.cl')}${campo('f-inspector', 'IF titular (referencial)', c.inspectorNombre, LIM.inspector)}${campo('f-cif-t', 'Correo IF titular', c.correoIfTitular, LIM.correo, 'email', 'if.titular@dominio.cl')}${campo('f-suplente', 'IF suplente (referencial)', c.inspectorSuplente, LIM.inspector)}${campo('f-cif-s', 'Correo IF suplente', c.correoIfSuplente, LIM.correo, 'email', 'if.suplente@dominio.cl')}</div></article>`;
+    }) : html`<div class="empty-state">Aún no hay contratos: agrégalos o cárgalos por Excel.</div>`);
     renderPesosContratos();
     setHTML($('#cfUnidades'), contratos.length ? contratos.map(function(c){
       var us = State.unidades.filter(function(u){ return u.contratoId === c.id; }), act = us.filter(function(u){ return u.activo; }).length;
@@ -3151,6 +3246,7 @@
   document.addEventListener('click', function(e){ if(State.notifAbierto && !cerca(e.target, '#notifPanel') && !cerca(e.target, '#btnNotif')){ State.notifAbierto = false; renderNotif(); } });
   $('#notifPanel').addEventListener('click', function(e){
     if(cerca(e.target, '#notifLeidas')) conBoton(cerca(e.target, '#notifLeidas'), function(){ return Repo.marcarLeidas().catch(function(err){ reportError(err, 'No se pudo marcar como leídas.'); }); });
+    else if(cerca(e.target, '#notifCerrar')){ State.notifAbierto = false; renderNotif(); $('#btnNotif').focus(); }
     else if(cerca(e.target, '#notifIr')){ State.notifAbierto = false; State.solFiltro = 'RESUELTAS'; Session.tab = 'solicitudes'; renderAll(); }
   });
   $('#btnIrProblema').addEventListener('click', function(){ Session.tab = 'problematicas'; $('#nuevaProblema').hidden = false; renderAll(); renderPbUnidadSelect(); $('#pbTitulo').focus(); });
@@ -3310,7 +3406,7 @@
   });
   $('#cfContratos').addEventListener('click', function(e){
     if(!cerca(e.target, '.js-save') || Session.role !== 'admin') return;
-    var tr = cerca(e.target, 'tr'), c = findContrato(cleanId(tr.getAttribute('data-id'))); if(!c) return;
+    var tr = cerca(e.target, '.cf-card'), c = tr && findContrato(cleanId(tr.getAttribute('data-id'))); if(!c) return;
     conBoton(e.target, function(){ return Repo.saveContrato(c.id, { codDeaf: tr.querySelector('.f-coddeaf').value, nombre: tr.querySelector('.f-nombre').value, unidadLabel: tr.querySelector('.f-unidadlabel').value, inspectorNombre: tr.querySelector('.f-inspector').value, inspectorSuplente: tr.querySelector('.f-suplente').value, correoIfTitular: tr.querySelector('.f-cif-t').value, correoIfSuplente: tr.querySelector('.f-cif-s').value, correoAprobador: tr.querySelector('.f-correo-c').value, activo: tr.querySelector('.f-activo').checked }).then(function(){ showToast('Contrato actualizado.'); }, function(err){ reportError(err, 'No se pudo guardar.'); }); });
   });
   $('#cfUnidades').addEventListener('toggle', function(e){ var d = e.target; if(d && d.classList && d.classList.contains('uc')){ var cid = cleanId(d.getAttribute('data-cid')); if(cid) State.uAbierto[cid] = d.open; } }, true);
@@ -3427,11 +3523,14 @@
     var box = document.querySelector('[data-tareas="' + k + '"]'); if(!box) return;
     var lista = ED[k].tareas, ol = box.querySelector('.tareas-lista');
     setHTML(ol, lista.map(function(t, i){
-      return html`<li class="tarea-fila"><input type="text" class="tarea-txt" data-i="${i}" maxlength="${LIM.tarea}" value="${t.texto}" aria-label="${'Acción ' + (i + 1)}">${k === 'editar' ? html`<label class="check-row" style="padding:4px 8px;"><input type="checkbox" class="tarea-hecho" data-i="${i}"${t.hecho ? ' checked' : ''}> hecha</label>` : ''}<button type="button" class="tag-remove js-tarea-del" data-i="${i}" aria-label="${'Quitar la acción ' + (i + 1)}">×</button></li>`;
+      return html`<li class="tarea-fila"><textarea class="tarea-txt autoalto" rows="1" data-i="${i}" maxlength="${LIM.tarea}" aria-label="${'Acción ' + (i + 1)}">${t.texto}</textarea>${k === 'editar' ? html`<label class="check-row" style="padding:4px 8px;"><input type="checkbox" class="tarea-hecho" data-i="${i}"${t.hecho ? ' checked' : ''}> hecha</label>` : ''}<button type="button" class="tag-remove js-tarea-del" data-i="${i}" aria-label="${'Quitar la acción ' + (i + 1)}">×</button></li>`;
     }));
     ol.hidden = !lista.length;
+    ajustarAltos(ol);
     if(foco) box.querySelector('.tarea-in').focus();
   }
+  function ajustarAlto(el){ el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; }
+  function ajustarAltos(raiz){ (raiz || document).querySelectorAll('textarea.autoalto').forEach(ajustarAlto); }
   function resetEditores(k){ ED[k] = { tags:[], tareas:[] }; renderTagsEd(k); renderTareasEd(k); var f = document.querySelector('[data-tags="' + k + '"] .tags-in'), g = document.querySelector('[data-tareas="' + k + '"] .tarea-in'); if(f) f.value = ''; if(g) g.value = ''; }
   function agregarTag(k, v){ var t = cleanStr(v, LIM.tag); if(!t || ED[k].tags.indexOf(t) !== -1 || ED[k].tags.length >= LIM.tags) return; ED[k].tags.push(t); renderTagsEd(k); }
   function agregarTarea(k, v, foco){
@@ -3445,6 +3544,7 @@
     if(g && g.value.trim()){ agregarTarea(k, g.value, false); g.value = ''; }
   }
   document.addEventListener('keydown', function(e){
+    if(e.key === 'Enter' && e.target.classList && e.target.classList.contains('autoalto')){ e.preventDefault(); return; }   // texto de una sola línea que crece hacia abajo
     if(e.target.classList && e.target.classList.contains('tags-in') && (e.key === 'Enter' || e.key === ',')){ var k = claveEd(e.target, 'data-tags'); e.preventDefault(); if(k){ agregarTag(k, e.target.value); e.target.value = ''; } }
     else if(e.target.classList && e.target.classList.contains('tarea-in') && e.key === 'Enter'){ var k2 = claveEd(e.target, 'data-tareas'); e.preventDefault(); if(k2 && agregarTarea(k2, e.target.value, true)) e.target.value = ''; }
   });
@@ -3457,12 +3557,13 @@
     if(a){ var k3 = claveEd(a, 'data-tareas'), inp = k3 && document.querySelector('[data-tareas="' + k3 + '"] .tarea-in'); if(k3 && inp && agregarTarea(k3, inp.value, true)) inp.value = ''; }
   });
   document.addEventListener('input', function(e){
+    if(e.target.classList && e.target.classList.contains('autoalto')) ajustarAlto(e.target);
     if(e.target.classList && e.target.classList.contains('tarea-txt')){ var k = claveEd(e.target, 'data-tareas'), i = strictInt(e.target.getAttribute('data-i'), 0, LIM.checklist - 1); if(k && i !== null && ED[k].tareas[i]) ED[k].tareas[i].texto = e.target.value; }
   });
   document.addEventListener('change', function(e){
     if(e.target.classList && e.target.classList.contains('tarea-hecho')){ var k = claveEd(e.target, 'data-tareas'), i = strictInt(e.target.getAttribute('data-i'), 0, LIM.checklist - 1); if(k && i !== null && ED[k].tareas[i]) ED[k].tareas[i].hecho = e.target.checked; }
   });
-  $('#btnToggleNueva').addEventListener('click', function(){ var p = $('#nuevaProblema'); p.hidden = !p.hidden; if(!p.hidden) renderPbUnidadSelect(); });
+  $('#btnToggleNueva').addEventListener('click', function(){ var p = $('#nuevaProblema'); p.hidden = !p.hidden; if(!p.hidden){ renderPbUnidadSelect(); ajustarAltos(p); } });
   $('#btnCancelarProblema').addEventListener('click', function(){ $('#nuevaProblema').hidden = true; $('#formProblema').reset(); resetEditores('nuevo'); });
   $('#pbToggleCentral').addEventListener('change', function(e){ State.pbSoloCentral = e.target.checked; renderKanban(); });
   $('#formProblema').addEventListener('submit', function(e){
@@ -3523,6 +3624,43 @@
     if(cerca(e.target, '.btn-ficha')) abrirModalFicha(p);
     else if(cerca(e.target, '.btn-reabrir')) mover(p, 'detectado');
   });
+
+  /* modo celular: cada celda lleva la etiqueta de su columna (se muestra como "etiqueta: valor") */
+  function etiquetarTablas(raiz){
+    (raiz || document).querySelectorAll('.table-wrap table').forEach(function(t){
+      var ths = t.querySelectorAll('thead th'); if(!ths.length) return;
+      var etiquetas = Array.prototype.map.call(ths, function(th){ return th.textContent.trim(); });
+      t.querySelectorAll('tbody tr').forEach(function(tr){
+        Array.prototype.forEach.call(tr.children, function(td, i){ var e = etiquetas[i] || ''; if(td.getAttribute('data-label') !== e) td.setAttribute('data-label', e); });
+      });
+    });
+  }
+  /* Una tabla pasa a tarjetas si no cabe a lo ancho o si algún campo queda cortado (en celular, siempre).
+     Vuelve a ser tabla cuando la ventana crece bastante (evita que oscile). */
+  function ajustarTablas(){
+    var vw = window.innerWidth;
+    document.querySelectorAll('.table-wrap').forEach(function(w){
+      var t = w.querySelector('table'); if(!t || !w.offsetParent) return;
+      if(vw <= 720){ w.classList.add('tarjetas'); return; }
+      if(w.classList.contains('tarjetas')){
+        if(vw >= (+w.getAttribute('data-vw') || 0) + 160) w.classList.remove('tarjetas'); else return;
+      }
+      var aprieta = t.scrollWidth > w.clientWidth + 1 || Array.prototype.some.call(t.querySelectorAll('input[type="text"], input[type="email"], input:not([type])'), function(i){ return i.value && i.scrollWidth > i.clientWidth + 2; });
+      if(aprieta){ w.classList.add('tarjetas'); w.setAttribute('data-vw', String(vw)); }
+    });
+  }
+  var etiquetaPendiente = false;
+  function programarTablas(){
+    if(etiquetaPendiente) return;
+    etiquetaPendiente = true;
+    requestAnimationFrame(function(){ etiquetaPendiente = false; etiquetarTablas(document); ajustarTablas(); });
+  }
+  new MutationObserver(programarTablas).observe(document.body, { childList:true, subtree:true });
+  window.addEventListener('resize', programarTablas);
+  if(window.matchMedia){
+    var mqCel = window.matchMedia('(max-width:720px)'), alCambiar = function(){ if(Session.role) renderAll(); };
+    if(mqCel.addEventListener) mqCel.addEventListener('change', alCambiar); else if(mqCel.addListener) mqCel.addListener(alCambiar);
+  }
 
   /* =================================================================
      10. INICIO

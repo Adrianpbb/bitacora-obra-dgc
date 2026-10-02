@@ -589,3 +589,13 @@ Nuevas ideas del dueño del proyecto, trabajadas con commit por bloque y registr
   cambio de acceso quede auditado y no dependa de que el correo de la cuenta coincida. El correo de la persona lo escribe el administrador (o lo trae el directorio).
   Pendiente: cargar *personas* por Excel (hoy se agregan una a una desde el directorio, porque `permisos/<uid>` se identifica por la cuenta, no por el correo).
 
+### 11.9 v10.13 – v10.14: checklist editable y modo celular (2026-10-02)
+
+- **Checklist de fichas ya creadas** (v10.13): "Editar checklist" en el detalle de cada ficha, para cualquier persona del contrato (antes solo autor o jefatura
+  podían editar, y en el modo local las fichas de ejemplo eran de otra persona, por eso no aparecía el botón). Nota automática en la bitácora y Registro de cambios.
+- **Modo celular** (v10.14). Criterio: *nada cortado ni escondido a la derecha*. Se verifica con un script que, para cada perfil y pestaña (y las ventanas
+  emergentes), detecta scroll horizontal de página, elementos fuera de pantalla, contenido que exige deslizar, texto cortado, campos cuyo valor no cabe y
+  placeholders cortados (`pruebas/test_frontend.py`, escenario H, `JS_RECORTES`). Decisiones: tablas → tarjetas por regla automática (`ajustarTablas`:
+  si no cabe o un campo queda apretado; con histéresis para no oscilar); Gantt en lista en celular (`renderGanttLista`); banner no fijo en celular;
+  pestañas en varias líneas en todo tamaño. Límite: verificado en Chromium (escritorio y emulación de ancho); no probado en un teléfono físico ni en Safari/iOS.
+

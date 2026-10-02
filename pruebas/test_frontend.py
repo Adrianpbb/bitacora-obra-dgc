@@ -792,8 +792,8 @@ def escenario_cargas_admin(p):
         check('Se crean los contratos nuevos con codDeaf (numérico como texto)', sorted(w['data']['codDeaf'] for w in crea) == ['8', 'DEAF-003'] and all(w['data']['activo'] is True for w in crea), crea)
         check('Nada se borra y el otro contrato queda intacto', not any(w['op'] == 'delete' or w['path'] == 'contratos/c2' for w in nuevas))
         check('Aviso de importación lista', 'Importación lista' in toast(page))
-        page.wait_for_selector('#cfContratos tr input.f-coddeaf[value="DEAF-003"]')
-        check('Los contratos importados aparecen en la tabla con su COD_DEAF', page.locator('#cfContratos tr').count() == 4)
+        page.wait_for_selector('#cfContratos .cf-card input.f-coddeaf[value="DEAF-003"]')
+        check('Los contratos importados aparecen en la tabla con su COD_DEAF', page.locator('#cfContratos .cf-card').count() == 4)
 
         # --- CSV de Excel en español: separador ';', comillas y BOM ---
         csv = tmpd / 'contratos.csv'
@@ -964,8 +964,8 @@ def escenario_pesos(p):
         nuevas = datos(page, n)
         check('Pesos de contratos guardados (50/50) sin tocar otros campos', sorted((w['path'], json.dumps(w['data'])) for w in nuevas) == [('contratos/c1', '{"peso": 50}'), ('contratos/c2', '{"peso": 50}')], nuevas)
         n = len(escrituras(page))
-        page.fill('#cfContratos tr[data-id=c1] .f-nombre', 'Red Aeroportuaria Austral')
-        page.click('#cfContratos tr[data-id=c1] .js-save')
+        page.fill('#cfContratos .cf-card[data-id=c1] .f-nombre', 'Red Aeroportuaria Austral')
+        page.click('#cfContratos .cf-card[data-id=c1] .js-save')
         nuevas = esperar(page, 'contratos/c1', n)
         check('Guardar el formulario del contrato conserva su peso', nuevas[-1]['data'].get('peso') == 50, nuevas[-1])
         check('Sin errores de JavaScript', not errores, errores)
@@ -981,8 +981,8 @@ def escenario_registro(p):
         check('El administrador tiene la pestaña "Registro de cambios"', page.locator('#tabsNav [data-tab=registro]').count() == 1)
         tab(page, 'config')
         n0 = len(escrituras(page))
-        page.fill('#cfContratos tr[data-id=c1] .f-nombre', '=1+1 Red Aeroportuaria')
-        page.click('#cfContratos tr[data-id=c1] .js-save')
+        page.fill('#cfContratos .cf-card[data-id=c1] .f-nombre', '=1+1 Red Aeroportuaria')
+        page.click('#cfContratos .cf-card[data-id=c1] .js-save')
         esperar(page, 'contratos/c1', n0)
         c1 = '#cfUnidades details.uc[data-cid=c1]'
         page.fill(c1 + ' .f-nueva', 'Helipuerto Sur')
@@ -1187,6 +1187,103 @@ def escenario_local(p):
         browser.close()
 
 
+# Detecta en pantalla: scroll horizontal de página, elementos fuera de pantalla, contenido que obliga a deslizar de lado,
+# texto cortado (overflow/ellipsis), campos cuyo valor no cabe y textos de ayuda (placeholder) cortados.
+JS_RECORTES = r"""() => {
+  const vw = window.innerWidth, out = [];
+  const scrollers = el => { for(let p = el.parentElement; p; p = p.parentElement){ const cs = getComputedStyle(p); if((cs.overflowX === 'auto' || cs.overflowX === 'scroll') && p.scrollWidth > p.clientWidth + 1) return p; } return null; };
+  const visible = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; };
+  if(document.documentElement.scrollWidth > vw + 1) out.push({tipo:'scroll horizontal de página', w: document.documentElement.scrollWidth});
+  document.querySelectorAll('#appShell *, #modalBack *').forEach(el => {
+    if(!visible(el)) return;
+    if(el.closest('[hidden]')) return;
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    const sc = scrollers(el);
+    if(!sc && (r.right > vw + 1 || r.left < -1) && el.children.length === 0 && el.textContent.trim()) out.push({tipo:'fuera de pantalla', el: el.tagName + '.' + el.className, txt: el.textContent.trim().slice(0,40), r: Math.round(r.right)});
+    if(sc && el.children.length === 0 && el.textContent.trim() && !el.closest('.g-scroll')) out.push({tipo:'requiere deslizar', el: el.tagName + '.' + el.className, txt: el.textContent.trim().slice(0,30), en: sc.className});
+    if((cs.overflow === 'hidden' || cs.overflowX === 'hidden' || cs.textOverflow === 'ellipsis') && el.scrollWidth > el.clientWidth + 1 && el.textContent.trim()) out.push({tipo:'texto cortado', el: el.tagName + '.' + el.className, txt: el.textContent.trim().slice(0,40)});
+    if((el.tagName === 'INPUT' || el.tagName === 'SELECT') && el.scrollWidth > el.clientWidth + 2 && el.value) out.push({tipo:'campo cortado', el: el.tagName + '.' + el.className, txt: (el.value || '').slice(0,30)});
+  });
+  const cv = document.createElement('canvas').getContext('2d');
+  document.querySelectorAll('#appShell input[placeholder], #appShell textarea[placeholder], #modalBack input[placeholder], #modalBack textarea[placeholder]').forEach(el => {
+    if(!visible(el) || el.value || el.closest('[hidden]')) return;
+    const cs = getComputedStyle(el); cv.font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+    const disp = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    if(cv.measureText(el.placeholder).width > disp + 1 && el.tagName === 'INPUT') out.push({tipo:'placeholder cortado', el: el.tagName + '#' + el.id + '.' + el.className, txt: el.placeholder});
+  });
+  const seen = new Set(); return out.filter(o => { const k = o.tipo + o.el + o.txt; if(seen.has(k)) return false; seen.add(k); return true; });
+}"""
+
+
+def recortes(page):
+    page.wait_for_timeout(250)
+    return page.evaluate(JS_RECORTES)
+
+
+def escenario_celular(p):
+    print('\nH. Modo celular (360 px): nada se corta ni obliga a deslizar de lado')
+    tmp = AQUI / '_tmp_prueba.html'
+    tmp.write_text('<script>window.__T = { xss: 0 };</script>\n' + PAGINA, encoding='utf-8')
+    browser = p.chromium.launch(executable_path=CHROME, headless=True)
+    tabs = {'if': ['contratos', 'avance', 'hitos', 'solicitudes', 'problematicas', 'resueltas'], 'validador': ['bandeja', 'historial'],
+            'admin': ['contratos', 'permisos', 'config', 'registro'], 'gabinete': ['gabinete']}
+    try:
+        for rol, lista in tabs.items():
+            page = browser.new_page(viewport={'width': 360, 'height': 780})
+            errores = []
+            page.on('pageerror', lambda e: errores.append(str(e)))
+            page.goto(tmp.as_uri())
+            page.wait_for_selector('#gatePerfil', state='visible', timeout=15000)
+            page.select_option('#gateRol', rol)
+            ingresar(page)
+            malos = {}
+            for t in lista:
+                tab(page, t)
+                if t == 'problematicas':
+                    page.click('#btnToggleNueva')
+                    page.click('.kcard-expand-btn >> nth=0')
+                r = recortes(page)
+                if r:
+                    malos[t] = r[:4]
+            check(f'Celular · {rol}: ninguna pantalla corta texto ni obliga a deslizar', not malos, malos)
+            if rol == 'if':
+                check('Celular: el banner no queda fijo y las pestañas se ven completas (varias líneas)', page.evaluate("getComputedStyle(document.querySelector('.appbar')).position") == 'static'
+                      and page.evaluate("getComputedStyle(document.querySelector('.tabsd')).flexWrap") == 'wrap')
+                tab(page, 'hitos')
+                page.select_option('#htContrato', 'dA')
+                page.wait_for_timeout(250)
+                check('Celular: el Gantt se muestra como lista por sector', page.locator('#ganttWrap .g-lista .gl-hito').count() == 5 and page.locator('#ganttWrap .g-scroll').count() == 0)
+                page.click('.gl-hito[data-hid=hA3]')
+                page.wait_for_selector('#formHito')
+                check('Celular: el popup del hito cabe y no corta nada', not recortes(page), recortes(page))
+                page.click('#modalBody .js-modal-cerrar')
+                page.click('#btnNotif')
+                check('Celular: el panel de notificaciones se puede cerrar con su propio botón', page.is_visible('#notifCerrar'))
+                page.click('#notifCerrar')
+                check('Celular: y se cierra', page.is_hidden('#notifPanel'))
+            if rol == 'admin':
+                tab(page, 'permisos')
+                check('Celular: las tablas se muestran como tarjetas con su etiqueta', page.evaluate("document.querySelector('#permTabla').closest('.table-wrap').classList.contains('tarjetas')")
+                      and page.get_attribute('#permTabla tr >> nth=0 >> td >> nth=1', 'data-label') == 'Perfil')
+                page.click('#permTabla .js-perm-contratos >> nth=0')
+                page.wait_for_selector('#mcLista')
+                check('Celular: la ventana de contratos cabe y no corta nada', not recortes(page), recortes(page))
+            check(f'Celular · {rol}: sin errores de JavaScript', not errores, errores)
+            page.close()
+        page = browser.new_page(viewport={'width': 1280, 'height': 900})
+        page.goto(tmp.as_uri()); page.wait_for_selector('#gatePerfil', state='visible'); page.select_option('#gateRol', 'admin'); ingresar(page)
+        malos = {}
+        for t in ['contratos', 'bandeja', 'historial', 'permisos', 'config', 'registro', 'problematicas', 'resueltas']:
+            tab(page, t)
+            r = recortes(page)
+            if r:
+                malos[t] = r[:4]
+        check('Escritorio 1.280 px: las 8 pestañas del administrador se ven y nada se corta', not malos, malos)
+        page.close()
+    finally:
+        browser.close()
+
+
 def escenario_entregable(p):
     print('\nG. Entregable autocontenido "Bitacora de Obra.html" abierto desde otra carpeta')
     import shutil
@@ -1238,6 +1335,7 @@ if __name__ == '__main__':
         escenario_sin_perfil(p)
         escenario_local(p)
         escenario_entregable(p)
+        escenario_celular(p)
     (AQUI / '_tmp_prueba.html').unlink(missing_ok=True)
     fallas = [r for r in resultados if not r[1]]
     print(f'\n{len(resultados) - len(fallas)}/{len(resultados)} pruebas OK')

@@ -10,6 +10,15 @@ Formato de cada entrada: versión · fecha · commit — qué cambió · pruebas
 
 ---
 
+## v10.14 · 2026-10-02 — Modo celular: nada se corta
+- **Celular (≤ 720 px)**: el banner deja de quedar fijo y se compacta; las pestañas pasan a varias líneas (antes se cortaban en el borde); el Gantt se muestra como **lista por sector** con las tres fechas de cada hito (se toca para modificarlo); ventanas emergentes a lo ancho; comparativos y filtros en una columna.
+- **Tablas → tarjetas automáticamente**: cualquier tabla que no cabe a lo ancho, o cuyos campos quedan apretados, se muestra como tarjetas "etiqueta: valor" (en celular, siempre). Vale para todas las tablas, también las futuras.
+- **Escritorio**: las 8 pestañas del administrador ya no se cortan a 1.280 px (pasan a una segunda línea si no caben); la configuración de contratos usa una tarjeta por contrato con sus campos rotulados (antes, una fila de 10 columnas que obligaba a deslizar).
+- Campos de texto largo (título de la ficha, acciones del checklist) **crecen en alto** en vez de esconder lo que no cabe. Textos de ayuda acortados para que se lean enteros.
+- El panel de notificaciones tiene su propio botón **Cerrar** (en celular tapaba la campanita).
+- Verificado con un barrido automático de recortes en 320, 360, 414, 600, 768, 1.024, 1.280 y 1.920 px (pantallas y ventanas emergentes): 0 elementos cortados. Prueba permanente nueva "Modo celular".
+- Pruebas: frontend 263/263 · backend 58/58.
+
 ## v10.13 · 2026-10-02 — Editar el checklist de problemáticas ya creadas
 - En el detalle de cada ficha hay **"✎ Editar checklist"**: cambiar el texto de una acción, marcarla como hecha, quitarla o agregar nuevas. Lo puede hacer **cualquier IF o jefatura del contrato** (igual que marcar tareas como hechas); antes solo el autor o la jefatura podían editar la ficha.
 - La edición completa de la ficha (título, descripción, etc.) sigue siendo del autor o la jefatura; en modo demo/local, donde una sola persona hace todos los papeles, se puede editar todo.
