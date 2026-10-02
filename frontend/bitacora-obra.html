@@ -462,6 +462,11 @@
         <div class="empty-state" id="gbEmpty" hidden>Aún no hay contratos con información aprobada.</div>
         <p class="section-title">Alertas escaladas</p>
         <div id="gbAlertas"></div>
+        <p class="section-title">Últimas aprobaciones</p>
+        <p class="helper">Avances aprobados y hitos modificados, de la más reciente a la más antigua. Solo datos oficiales.</p>
+        <div class="filter-chips" id="gbFiltros"></div>
+        <div id="gbAprobaciones"></div>
+        <div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn secondary" type="button" id="gbVerMas" hidden>Ver más</button></div>
       </section>
 
       <section id="panel-avance" class="panel">
@@ -1006,7 +1011,7 @@
       recibos:Object.create(null), recibosCargados:Object.create(null), cuentas:Object.create(null),
       expRadar:new Set(), expHist:new Set(), expanded:new Set(), confirmar:new Set(), rechazando:new Set(), rechazoTexto:Object.create(null),
       solFiltro:'PENDIENTE_APROBACION', permEdits:Object.create(null), permNuevos:[], permHits:[], pbSoloCentral:false,
-      leidoTs:0, notifAbierto:false, modal:null, correoEdits:Object.create(null)
+      leidoTs:0, notifAbierto:false, modal:null, correoEdits:Object.create(null), gbFiltro:'todo', gbLimite:10
     };
   }
   function fail(msg){ var e = new Error(msg); e.code = 'validacion'; return e; }
@@ -1188,7 +1193,8 @@
         await db.doc('oficial/avance-' + s.ref).set({ tipo:'avance', contratoId:s.contratoId, unidadId:s.ref, valor:s.valorPropuesto, fechaReporte:s.fechaReporte, aprobadoTs:ahora, solicitudId:s.id, revisorId:myUid });
       } else {
         var o = State.ofHito[s.ref] || {};
-        anterior = s.tipo === 'fecha_programada' ? (o.fechaVigente || null) : (o.fechaReal || null);
+        var hb = findIn(State.hitos, s.ref);
+        anterior = s.tipo === 'fecha_programada' ? (o.fechaVigente || (hb ? hb.fechaContractual : null) || null) : (o.fechaReal || null);
         await db.doc('oficial/hito-' + s.ref).set({ tipo:'hito', contratoId:s.contratoId, hitoId:s.ref,
           fechaVigente: s.tipo === 'fecha_programada' ? s.valorPropuesto : (o.fechaVigente || null),
           fechaReal: s.tipo === 'fecha_real' ? s.valorPropuesto : (o.fechaReal || null), aprobadoTs:ahora, revisorId:myUid });
@@ -1371,7 +1377,7 @@
       else if(o.tipo === 'alerta') al[o.problematicaId] = o;
       else hist.push(o);
     });
-    hist.sort(function(a, b){ return b.aprobadoTs - a.aprobadoTs; });
+    hist.sort(function(a, b){ return (b.aprobadoTs - a.aprobadoTs) || (a.id < b.id ? 1 : -1); });
     State.ofAvance = av; State.ofHito = hi; State.ofAlerta = al; State.ofHist = hist;
   }
   function suscribir(){
@@ -1627,10 +1633,30 @@
     setHTML($('#gbCards'), cs.map(function(c){ return renderCard(c, true); }));
     animarBarras($('#gbCards'));
     var al = alertasActivas(null).sort(function(a, b){ return b.aprobadoTs - a.aprobadoTs; });
+    renderAprobacionesGabinete();
     setHTML($('#gbAlertas'), al.length ? html`<div class="table-wrap"><table class="tbl-compact"><thead><tr><th>Alerta</th><th>Contrato</th><th>Riesgo</th><th>Requiere</th><th>Estado</th><th>Publicada</th></tr></thead><tbody>${al.map(function(a){
       var est = findBy(PB_ESTADOS, a.estado);
       return html`<tr><td><strong>${a.titulo}</strong></td><td>${contratoNombre(a.contratoId)}</td><td>${riesgoPill(a.nivelRiesgo)}</td><td>${a.escalamiento.length ? html`<span class="chips">${a.escalamiento.map(function(x){ return html`<span class="chip">${x}</span>`; })}</span>` : '—'}</td><td>${est ? est.label : ''}</td><td class="mono">${fmtTs(a.aprobadoTs)}</td></tr>`;
     })}</tbody></table></div>` : html`<div class="empty-state">No hay alertas escaladas publicadas.</div>`);
+  }
+
+  /* ---- Gabinete: últimas aprobaciones (solo oficial/hist-*) ---- */
+  var GB_FILTROS = [['todo', 'Todas'], ['avance', 'Avances'], ['hito', 'Hitos modificados']];
+  function renderAprobacionesGabinete(){
+    var todas = State.ofHist.filter(function(h){ return enAlcance(h.contratoId); });
+    function esHito(h){ return h.campo !== 'avance'; }
+    var lista = todas.filter(function(h){ return State.gbFiltro === 'todo' || (State.gbFiltro === 'avance' ? !esHito(h) : esHito(h)); });
+    setHTML($('#gbFiltros'), GB_FILTROS.map(function(f){ return html`<button type="button" class="filter-chip${State.gbFiltro === f[0] ? ' active' : ''}" data-filtro="${f[0]}">${f[1]}</button>`; }));
+    var visibles = lista.slice(0, State.gbLimite);
+    $('#gbVerMas').hidden = lista.length <= visibles.length;
+    $('#gbVerMas').textContent = 'Ver más (' + (lista.length - visibles.length) + ' restantes)';
+    if(!lista.length){ setHTML($('#gbAprobaciones'), html`<div class="empty-state">Aún no hay aprobaciones para mostrar.</div>`); return; }
+    setHTML($('#gbAprobaciones'), html`<div class="table-wrap"><table class="tbl-compact"><thead><tr><th>Aprobado el</th><th>Qué cambió</th><th>Contrato</th><th>Sector</th><th>Hito</th><th>Anterior → nuevo</th></tr></thead><tbody>${visibles.map(function(h){
+      var tipo = findBy(SOL_TIPOS, h.campo), hito = esHito(h) ? findIn(State.hitos, h.ref) : null;
+      var sector = esHito(h) ? (hito ? unidadNombre(hito.unidadId) : '—') : unidadNombre(h.ref);
+      var delta = (h.campo === 'fecha_programada' && diffDias(h.valorAnterior, h.valorNuevo) !== null) ? diffDias(h.valorAnterior, h.valorNuevo) : null;
+      return html`<tr><td class="mono">${fmtTs(h.aprobadoTs)}</td><td>${pill(esHito(h) ? 'accent' : 'good', tipo ? tipo.label : '')}</td><td>${contratoNombre(h.contratoId)}</td><td>${sector}</td><td>${esHito(h) ? (hito ? (hito.nombre || hito.tipo) + ' (' + hito.tipo + ')' : '—') : '—'}</td><td class="mono">${fmtValor(h.campo, h.valorAnterior)} → <strong>${fmtValor(h.campo, h.valorNuevo)}</strong>${delta !== null && delta !== 0 ? ' ' : ''}${delta !== null && delta !== 0 ? pill(delta > 0 ? 'bad' : 'good', (delta > 0 ? '+' : '') + delta + ' d') : ''}</td></tr>`;
+    })}</tbody></table></div>`);
   }
 
   /* ---- contrato activo (IF con más de un contrato) ---- */
@@ -2040,7 +2066,7 @@
     Session.role = null; Session.contratos = null; Session.rolesContrato = null; Session.contratoActivo = null; Session.tab = null; Session.preview = false;
     State = estadoVacio();
     $('#modalBack').hidden = true; document.body.style.overflow = ''; $('#notifPanel').hidden = true; $('#btnNotif').hidden = true;
-    ['#ctKpis', '#ctCards', '#gbKpis', '#gbCards', '#gbAlertas', '#solFiltros', '#solLista', '#bjKpis', '#bjLista', '#bjAlertas', '#hsBody', '#permTabla', '#permResultados', '#cfContratos', '#cfUnidades', '#cfHitos', '#permAprobadores', '#kanbanBoard', '#resueltasBody', '#cgAvUnidad', '#cgAvInfo', '#avTimeline', '#avContrato', '#htContrato', '#ganttWrap', '#modalBody', '#notifPanel', '#pbUnidad', '#whoami', '#tabsNav'].forEach(function(sel){ setHTML($(sel), ''); });
+    ['#ctKpis', '#ctCards', '#gbKpis', '#gbCards', '#gbAlertas', '#gbFiltros', '#gbAprobaciones', '#solFiltros', '#solLista', '#bjKpis', '#bjLista', '#bjAlertas', '#hsBody', '#permTabla', '#permResultados', '#cfContratos', '#cfUnidades', '#cfHitos', '#permAprobadores', '#kanbanBoard', '#resueltasBody', '#cgAvUnidad', '#cgAvInfo', '#avTimeline', '#avContrato', '#htContrato', '#ganttWrap', '#modalBody', '#notifPanel', '#pbUnidad', '#whoami', '#tabsNav'].forEach(function(sel){ setHTML($(sel), ''); });
     $('#formAvance').reset(); $('#formProblema').reset(); resetStakeholders();
     $('#appShell').hidden = true; $('#gate').hidden = false;
   }
@@ -2089,6 +2115,12 @@
     if(cerca(e.target, '.js-radar')){ if(State.expRadar.has(cid)) State.expRadar.delete(cid); else State.expRadar.add(cid); renderAll(); }
     else if(cerca(e.target, '.js-hist')){ if(State.expHist.has(cid)) State.expHist.delete(cid); else State.expHist.add(cid); renderAll(); }
   }
+  $('#gbFiltros').addEventListener('click', function(e){
+    var b = cerca(e.target, '.filter-chip'); if(!b) return;
+    var f = b.getAttribute('data-filtro');
+    if(GB_FILTROS.some(function(x){ return x[0] === f; })){ State.gbFiltro = f; State.gbLimite = 10; renderGabinete(); }
+  });
+  $('#gbVerMas').addEventListener('click', function(){ State.gbLimite += 10; renderGabinete(); });
   $('#ctCards').addEventListener('click', onCards);
   $('#gbCards').addEventListener('click', onCards);
 

@@ -88,13 +88,13 @@ _LECTURAS = {
 
 _HISTORIAL = {
     ('sqlite', False): 'SELECT ContratoId, Campo, Ref, ValorAnterior, ValorNuevo, FechaReporte, Nota, AutorId, RevisorId, Migrado, AprobadoEn '
-                       'FROM HistorialOficial ORDER BY AprobadoEn DESC LIMIT ?',
+                       'FROM HistorialOficial ORDER BY AprobadoEn DESC, Id DESC LIMIT ?',
     ('sqlite', True): 'SELECT ContratoId, Campo, Ref, ValorAnterior, ValorNuevo, FechaReporte, Nota, AutorId, RevisorId, Migrado, AprobadoEn '
-                      'FROM HistorialOficial WHERE ContratoId IN (' + _ASIGNADOS + ') ORDER BY AprobadoEn DESC LIMIT ?',
+                      'FROM HistorialOficial WHERE ContratoId IN (' + _ASIGNADOS + ') ORDER BY AprobadoEn DESC, Id DESC LIMIT ?',
     ('sqlserver', False): 'SELECT TOP (?) ContratoId, Campo, Ref, ValorAnterior, ValorNuevo, FechaReporte, Nota, AutorId, RevisorId, Migrado, '
-                          'AprobadoEn FROM HistorialOficial ORDER BY AprobadoEn DESC',
+                          'AprobadoEn FROM HistorialOficial ORDER BY AprobadoEn DESC, Id DESC',
     ('sqlserver', True): 'SELECT TOP (?) ContratoId, Campo, Ref, ValorAnterior, ValorNuevo, FechaReporte, Nota, AutorId, RevisorId, Migrado, '
-                         'AprobadoEn FROM HistorialOficial WHERE ContratoId IN (' + _ASIGNADOS + ') ORDER BY AprobadoEn DESC',
+                         'AprobadoEn FROM HistorialOficial WHERE ContratoId IN (' + _ASIGNADOS + ') ORDER BY AprobadoEn DESC, Id DESC',
 }
 
 # Búsqueda de una entidad dentro del alcance: (entidad, por_usuario) -> SQL literal.
@@ -467,6 +467,10 @@ class Repositorio:
             fila = cur.fetchone()
             vigente, real = (fila[0], fila[1]) if fila else (None, None)
             anterior = vigente if s['Tipo'] == 'fecha_programada' else real
+            if anterior is None and s['Tipo'] == 'fecha_programada':
+                # Sin fecha vigente previa, lo que se reprograma es la fecha contractual (Gabinete ve un "antes" claro).
+                cur.execute('SELECT FechaContractual FROM Hito WHERE Id = ?', (ref,))
+                anterior = cur.fetchone()[0]
             if s['Tipo'] == 'fecha_programada':
                 vigente = nuevo
             else:

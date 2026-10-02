@@ -270,6 +270,15 @@ class TestV10(Base):
         self.assertEqual((f['Estado'], f['ResolucionTexto'], f['ResolucionPorId']), ('resuelto', 'Se acordó plan de acceso con la comunidad', 'u_if'))
         self.assertIsNotNone(f['ResueltaEn'])
 
+    def test_historial_oficial_de_fecha_programada_parte_de_la_contractual(self):
+        sid = self.repo.proponer(self.inf, {'tipo': 'fecha_programada', 'hitoId': self.h1, 'valor': d(90), 'nota': 'Permisos'})
+        self.repo.aprobar(self.val, sid)
+        h = self.repo.listar_historial_oficial(self.gab)[0]
+        self.assertEqual((h['Campo'], h['ValorAnterior'], h['ValorNuevo']), ('fecha_programada', d(60), d(90)))
+        sid = self.repo.proponer(self.inf, {'tipo': 'fecha_programada', 'hitoId': self.h1, 'valor': d(100), 'nota': 'Otra vez'})
+        self.repo.aprobar(self.val, sid)
+        self.assertEqual(self.repo.listar_historial_oficial(self.gab)[0]['ValorAnterior'], d(90))
+
     def test_la_base_impide_resolver_sin_motivo(self):
         pid = self.crear_problematica()
         with self.assertRaises(sqlite3.IntegrityError):

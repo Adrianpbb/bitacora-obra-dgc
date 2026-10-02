@@ -491,6 +491,11 @@ def escenario_gabinete(p):
     seed = base()
     seed['solicitudes/sp'] = {'tipo': 'avance', 'contratoId': 'c1', 'unidadId': 'u1', 'valorPropuesto': 99, 'estado': 'PENDIENTE_APROBACION',
                               'nota': 'NO-APROBADO', 'autorId': 'u_if1', 'creadoTs': 1790000000009, 'enviadoTs': 1790000000009}
+    seed['oficial/hist-h2'] = {'tipo': 'historial', 'contratoId': 'c1', 'campo': 'fecha_programada', 'ref': 'h2', 'valorAnterior': d(20), 'valorNuevo': d(35),
+                               'fechaReporte': d(-1), 'nota': 'Permisos', 'autorId': 'u_if1', 'revisorId': 'u_val', 'aprobadoTs': 1790500000000}
+    for i in range(11):
+        seed[f'oficial/hist-a{i:02d}'] = {'tipo': 'historial', 'contratoId': 'c1', 'campo': 'avance', 'ref': 'u1', 'valorAnterior': i, 'valorNuevo': i + 1,
+                                          'fechaReporte': d(-30), 'nota': '', 'autorId': 'u_if1', 'revisorId': 'u_val', 'aprobadoTs': 1780000000000 + i * 1000}
     browser, page, errores = abrir(p, {'uid': 'u_gab', 'name': 'Gabinete DG', 'level': 'view', 'seed': seed})
     try:
         page.wait_for_selector('#gatePerfil', state='visible', timeout=15000)
@@ -503,6 +508,21 @@ def escenario_gabinete(p):
         check('Lista la alerta publicada y no la retirada', 'Alerta publicada' in cuerpo and 'ALERTA-RETIRADA' not in cuerpo)
         check('Semáforo rojo por alerta extrema', page.inner_text('.ccard[data-cid=c1] .sem') == 'Rojo')
         check('Sin formularios ni botones de edición', page.locator('#panel-gabinete input, #panel-gabinete textarea, #panel-gabinete .js-aprobar').count() == 0)
+        check('Gabinete no tiene bandeja ni botones de aprobación', page.locator('.js-aprobar, .js-rechazar, .js-publicar, .js-retirar, #tabsNav [data-tab=bandeja], #btnNotif:visible').count() == 0 and page.is_hidden('#panel-bandeja'))
+        filas = page.locator('#gbAprobaciones tbody tr')
+        check('Últimas aprobaciones: muestra 10 y ofrece "Ver más"', filas.count() == 10 and page.is_visible('#gbVerMas'), filas.count())
+        primera = filas.nth(0).inner_text()
+        fecha_apr = page.evaluate("new Date(1790500000000).toLocaleDateString('es-CL', {day:'2-digit', month:'short', year:'numeric'})")
+        check('La más reciente es el hito modificado: contrato, sector, hito, fecha anterior → nueva y fecha de aprobación',
+              'Red Aeroportuaria Austral' in primera and 'Aeródromo' in primera and 'Inicio de obras' in primera and 'Fecha programada' in primera and '→' in primera and fecha_apr in primera, primera)
+        check('Orden de la más reciente a la más antigua', 'Fecha programada' in filas.nth(0).inner_text() and 'Avance físico' in filas.nth(1).inner_text() and '62%' in filas.nth(1).inner_text(), filas.nth(1).inner_text())
+        page.click('#gbVerMas')
+        check('"Ver más" muestra el resto y se oculta', page.locator('#gbAprobaciones tbody tr').count() == 13 and page.is_hidden('#gbVerMas'))
+        page.click('#gbFiltros [data-filtro=hito]')
+        check('Filtro "Hitos modificados"', page.locator('#gbAprobaciones tbody tr').count() == 1)
+        page.click('#gbFiltros [data-filtro=avance]')
+        check('Filtro "Avances"', page.locator('#gbAprobaciones tbody tr').count() == 10 and 'Fecha programada' not in page.inner_text('#gbAprobaciones'))
+        page.click('#gbFiltros [data-filtro=todo]')
         check('Una sola pestaña y sin selector de perfil', page.locator('#tabsNav .tabd').count() == 1 and page.is_hidden('#verComoWrap'))
         check('Ninguna carga XSS se ejecutó', page.evaluate('window.__T.xss') == 0)
         check('Sin errores de JavaScript', not errores, errores)
