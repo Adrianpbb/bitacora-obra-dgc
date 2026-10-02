@@ -38,6 +38,13 @@ class AccesoDenegado(PermissionError):
     pass
 
 
+class ErrorCarga(v.ErrorValidacion):
+    """Carga masiva rechazada: `errores` es una lista de (número de fila, mensaje). No se guardó nada."""
+    def __init__(self, errores):
+        super().__init__('; '.join(f'fila {n}: {m}' for n, m in errores))
+        self.errores = errores
+
+
 class NoEncontrado(LookupError):
     pass
 
@@ -55,8 +62,8 @@ _ASIGNADOS = 'SELECT ContratoId FROM UsuarioContrato WHERE UsuarioId = ? AND Act
 
 # Lecturas: (nombre, por_usuario) -> SQL literal. Las variantes "por usuario" reciben el id de la sesión.
 _LECTURAS = {
-    ('contratos', False): 'SELECT Id, Nombre, UnidadLabel, InspectorNombre, CorreoAprobador, Activo FROM Contrato ORDER BY Nombre',
-    ('contratos', True): 'SELECT c.Id, c.Nombre, c.UnidadLabel, c.InspectorNombre, c.CorreoAprobador, c.Activo, '
+    ('contratos', False): 'SELECT Id, Nombre, CodDeaf, UnidadLabel, InspectorNombre, InspectorSuplente, CorreoAprobador, Activo FROM Contrato ORDER BY Nombre',
+    ('contratos', True): 'SELECT c.Id, c.Nombre, c.CodDeaf, c.UnidadLabel, c.InspectorNombre, c.InspectorSuplente, c.CorreoAprobador, c.Activo, '
                          '(SELECT uc.RolContrato FROM UsuarioContrato uc WHERE uc.UsuarioId = ? AND uc.ContratoId = c.Id AND uc.Activo = 1) AS RolContrato '
                          'FROM Contrato c WHERE c.Id IN (' + _ASIGNADOS + ') ORDER BY c.Nombre',
     ('unidades', False): 'SELECT Id, ContratoId, Nombre, Activo FROM Unidad ORDER BY Nombre',
@@ -270,21 +277,92 @@ class Repositorio:
     # ------------------------------------------------------------ estructura (ADMIN)
     def guardar_contrato(self, sesion, datos, contrato_id=None):
         self._exigir(sesion, 'ADMIN')
+        cod = v.cod_deaf(datos.get('codDeaf'), requerido=False)
         fila = (v.texto(datos.get('nombre'), v.LIM['nombre'], requerido=True, campo='nombre'),
+                cod,
                 v.texto(datos.get('unidadLabel'), v.LIM['label']),
                 v.texto(datos.get('inspectorNombre'), v.LIM['inspector']),
+                v.texto(datos.get('inspectorSuplente'), v.LIM['inspector']),
                 v.correo(datos.get('correoAprobador'), campo='correo del aprobador'),
                 0 if datos.get('activo') is False else 1)
         cur = self._cursor(sesion)
+        if cod is not None:
+            cur.execute('SELECT Id FROM Contrato WHERE UPPER(CodDeaf) = UPPER(?)', (cod,))
+            otro = cur.fetchone()
+            if otro is not None and otro[0] != contrato_id:
+                raise v.ErrorValidacion('COD_DEAF: ya existe otro contrato con ese código')
         if contrato_id is None:
             contrato_id = _nuevo_id()
-            cur.execute('INSERT INTO Contrato (Nombre, UnidadLabel, InspectorNombre, CorreoAprobador, Activo, Id) VALUES (?, ?, ?, ?, ?, ?)', fila + (contrato_id,))
+            cur.execute('INSERT INTO Contrato (Nombre, CodDeaf, UnidadLabel, InspectorNombre, InspectorSuplente, CorreoAprobador, Activo, Id) '
+                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?)', fila + (contrato_id,))
         else:
-            cur.execute('UPDATE Contrato SET Nombre = ?, UnidadLabel = ?, InspectorNombre = ?, CorreoAprobador = ?, Activo = ? WHERE Id = ?',
-                        fila + (v.ident(contrato_id, 'contrato'),))
+            cur.execute('UPDATE Contrato SET Nombre = ?, CodDeaf = ?, UnidadLabel = ?, InspectorNombre = ?, InspectorSuplente = ?, '
+                        'CorreoAprobador = ?, Activo = ? WHERE Id = ?', fila + (v.ident(contrato_id, 'contrato'),))
         self._auditar(cur, sesion, 'guardar', 'Contrato', contrato_id, contrato_id)
         self.conn.commit()
         return contrato_id
+
+    def importar_contratos(self, sesion, filas):
+        """Carga masiva (Excel/CSV): filas = lista de dicts con codDeaf, nombre, unidadLabel, inspectorNombre,
+        inspectorSuplente, correoAprobador. Todo o nada: si alguna fila falla se lanza ErrorCarga con
+        todos los errores y no se guarda nada. Existe el COD_DEAF -> actualiza (sin tocar Activo); si no, crea.
+        Nada se borra. Devuelve {'creados', 'actualizados', 'iguales'}."""
+        self._exigir(sesion, 'ADMIN')
+        if not isinstance(filas, (list, tuple)) or not filas:
+            raise v.ErrorValidacion('la carga no tiene filas')
+        if len(filas) > 500:
+            raise v.ErrorValidacion('la carga supera las 500 filas')
+        errores, vistos, limpias = [], {}, []
+        for n, f in enumerate(filas, start=1):
+            e0 = len(errores)
+            d = {}
+            for campo, fn in (('codDeaf', lambda x: v.cod_deaf(x)),
+                              ('nombre', lambda x: v.sin_formula(v.texto(x, v.LIM['nombre'], requerido=True, campo='nombre'), 'nombre')),
+                              ('unidadLabel', lambda x: v.sin_formula(v.texto(x, v.LIM['label'], requerido=True, campo='tipo de unidad'), 'tipo de unidad')),
+                              ('inspectorNombre', lambda x: v.sin_formula(v.texto(x, v.LIM['inspector'], requerido=True, campo='IF titular'), 'IF titular')),
+                              ('inspectorSuplente', lambda x: v.sin_formula(v.texto(x, v.LIM['inspector'], campo='IF suplente'), 'IF suplente')),
+                              ('correoAprobador', lambda x: v.correo(x, requerido=True, campo='correo del aprobador'))):
+                try:
+                    d[campo] = fn(f.get(campo) if isinstance(f, dict) else None)
+                except v.ErrorValidacion as e:
+                    errores.append((n, str(e)))
+            if len(errores) == e0:
+                clave = d['codDeaf'].upper()
+                if clave in vistos:
+                    errores.append((n, f'COD_DEAF repetido en la carga (fila {vistos[clave]})'))
+                else:
+                    vistos[clave] = n
+                    limpias.append((n, d))
+        if errores:
+            raise ErrorCarga(errores)
+        cur = self._cursor(sesion)
+        r = {'creados': 0, 'actualizados': 0, 'iguales': 0}
+        try:
+            for n, d in limpias:
+                cur.execute('SELECT Id, Nombre, UnidadLabel, InspectorNombre, InspectorSuplente, CorreoAprobador FROM Contrato WHERE UPPER(CodDeaf) = UPPER(?)', (d['codDeaf'],))
+                filas_db = cur.fetchall()
+                if len(filas_db) > 1:
+                    raise ErrorCarga([(n, 'COD_DEAF repetido en la base')])
+                nuevos = (d['nombre'], d['unidadLabel'], d['inspectorNombre'], d['inspectorSuplente'], d['correoAprobador'])
+                if not filas_db:
+                    cid = _nuevo_id()
+                    cur.execute('INSERT INTO Contrato (Id, CodDeaf, Nombre, UnidadLabel, InspectorNombre, InspectorSuplente, CorreoAprobador) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                                (cid, d['codDeaf'], d['nombre'], d['unidadLabel'], d['inspectorNombre'], d['inspectorSuplente'], d['correoAprobador']))
+                    r['creados'] += 1
+                elif tuple(filas_db[0][1:]) == nuevos:
+                    r['iguales'] += 1
+                    cid = filas_db[0][0]
+                else:
+                    cid = filas_db[0][0]
+                    cur.execute('UPDATE Contrato SET Nombre = ?, UnidadLabel = ?, InspectorNombre = ?, InspectorSuplente = ?, CorreoAprobador = ? WHERE Id = ?',
+                                (d['nombre'], d['unidadLabel'], d['inspectorNombre'], d['inspectorSuplente'], d['correoAprobador'], cid))   # el COD_DEAF guardado no se toca
+                    r['actualizados'] += 1
+            self._auditar(cur, sesion, 'importar', 'Contrato', None, None, f"{r['creados']} creados, {r['actualizados']} actualizados")
+        except Exception:
+            self.conn.rollback()
+            raise
+        self.conn.commit()
+        return r
 
     def guardar_unidad(self, sesion, datos, unidad_id=None):
         self._exigir(sesion, 'ADMIN')
@@ -292,6 +370,10 @@ class Repositorio:
         nombre = v.texto(datos.get('nombre'), v.LIM['nombre'], requerido=True, campo='nombre')
         activo = 0 if datos.get('activo') is False else 1
         cur = self._cursor(sesion)
+        cur.execute('SELECT Id, Nombre FROM Unidad WHERE ContratoId = ?', (contrato_id,))
+        # Comparación sin distinguir mayúsculas ni acentos de mayúscula (casefold): UPPER/NOCASE de SQLite solo pliega ASCII.
+        if any(fila[0] != unidad_id and fila[1].casefold() == nombre.casefold() for fila in cur.fetchall()):
+            raise v.ErrorValidacion('subsector: ese contrato ya tiene uno con ese nombre')
         if unidad_id is None:
             unidad_id = _nuevo_id()
             cur.execute('INSERT INTO Unidad (Id, ContratoId, Nombre, Activo) VALUES (?, ?, ?, ?)', (unidad_id, contrato_id, nombre, activo))
@@ -301,6 +383,59 @@ class Repositorio:
         self._auditar(cur, sesion, 'guardar', 'Unidad', unidad_id, contrato_id)
         self.conn.commit()
         return unidad_id
+
+    def importar_unidades(self, sesion, filas):
+        """Carga masiva de subsectores: filas = dicts con codDeaf (del contrato), nombre y activo (bool).
+        Todo o nada. Si el subsector ya existe en ese contrato (mismo nombre) solo se actualiza Activo; nunca se borra."""
+        self._exigir(sesion, 'ADMIN')
+        if not isinstance(filas, (list, tuple)) or not filas:
+            raise v.ErrorValidacion('la carga no tiene filas')
+        if len(filas) > 500:
+            raise v.ErrorValidacion('la carga supera las 500 filas')
+        cur = self._cursor(sesion)
+        errores, vistos, limpias = [], {}, []
+        for n, f in enumerate(filas, start=1):
+            try:
+                if not isinstance(f, dict):
+                    raise v.ErrorValidacion('fila inválida')
+                cod = v.cod_deaf(f.get('codDeaf'))
+                nombre = v.sin_formula(v.texto(f.get('nombre'), v.LIM['nombre'], requerido=True, campo='subsector'), 'subsector')
+                if not isinstance(f.get('activo'), bool):
+                    raise v.ErrorValidacion('activo: debe ser verdadero o falso')
+                cur.execute('SELECT Id FROM Contrato WHERE UPPER(CodDeaf) = UPPER(?)', (cod,))
+                cs = cur.fetchall()
+                if not cs:
+                    raise v.ErrorValidacion('COD_DEAF: el contrato no existe (cárgalo primero)')
+                if len(cs) > 1:
+                    raise v.ErrorValidacion('COD_DEAF repetido en la base')
+                clave = (cs[0][0], nombre.casefold())
+                if clave in vistos:
+                    raise v.ErrorValidacion(f'subsector repetido en la carga (fila {vistos[clave]})')
+                vistos[clave] = n
+                limpias.append((cs[0][0], nombre, f['activo']))
+            except v.ErrorValidacion as e:
+                errores.append((n, str(e)))
+        if errores:
+            raise ErrorCarga(errores)
+        r = {'creados': 0, 'actualizados': 0, 'iguales': 0}
+        try:
+            for contrato_id, nombre, activo in limpias:
+                cur.execute('SELECT Id, Activo, Nombre FROM Unidad WHERE ContratoId = ?', (contrato_id,))
+                u = next((fila for fila in cur.fetchall() if fila[2].casefold() == nombre.casefold()), None)
+                if u is None:
+                    cur.execute('INSERT INTO Unidad (Id, ContratoId, Nombre, Activo) VALUES (?, ?, ?, ?)', (_nuevo_id(), contrato_id, nombre, 1 if activo else 0))
+                    r['creados'] += 1
+                elif bool(u[1]) == activo:
+                    r['iguales'] += 1
+                else:
+                    cur.execute('UPDATE Unidad SET Activo = ? WHERE Id = ?', (1 if activo else 0, u[0]))
+                    r['actualizados'] += 1
+            self._auditar(cur, sesion, 'importar', 'Unidad', None, None, f"{r['creados']} creados, {r['actualizados']} actualizados")
+        except Exception:
+            self.conn.rollback()
+            raise
+        self.conn.commit()
+        return r
 
     def guardar_hito_base(self, sesion, datos, hito_id=None):
         self._exigir(sesion, 'ADMIN')

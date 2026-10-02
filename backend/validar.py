@@ -24,6 +24,7 @@ _CTRL = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]')
 _INVISIBLES = re.compile('[‪-‮⁦-⁩‎‏؜﻿]')
 _ID = re.compile(r'^[A-Za-z0-9_\-.~:@+]{1,200}$')
 _FECHA = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+_COD_DEAF = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._\-/]{0,39}$')
 _CORREO = re.compile(r'^[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}$')
 
 
@@ -53,6 +54,24 @@ def correo(v, requerido=False, campo='correo'):
         return ''
     if len(s) > LIM['correo'] or not _CORREO.match(s):
         raise ErrorValidacion(f'{campo}: formato de correo inválido')
+    return s
+
+
+def cod_deaf(v, requerido=True, campo='COD_DEAF'):
+    s = texto(v, 100, campo=campo)
+    if not s:
+        if requerido:
+            raise ErrorValidacion(f'{campo}: es obligatorio')
+        return None
+    if not _COD_DEAF.match(s):
+        raise ErrorValidacion(f'{campo}: solo admite letras, números y . _ - /')
+    return s
+
+
+def sin_formula(s, campo='campo'):
+    """Texto que no empieza con = + - @ (higiene frente a fórmulas si el dato se exporta a Excel)."""
+    if s and s[0] in '=+-@':
+        raise ErrorValidacion(f'{campo}: no puede comenzar con = + - @')
     return s
 
 

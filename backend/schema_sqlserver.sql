@@ -41,7 +41,9 @@ CREATE TABLE bitacora.Contrato (
   Id              NVARCHAR(64)  NOT NULL PRIMARY KEY,
   Nombre          NVARCHAR(150) NOT NULL CHECK (LEN(Nombre) >= 1),
   UnidadLabel     NVARCHAR(50)  NOT NULL DEFAULT N'',
-  InspectorNombre NVARCHAR(150) NOT NULL DEFAULT N'',
+  CodDeaf         NVARCHAR(40)  NULL,                   -- código DEAF del contrato (único)
+  InspectorNombre NVARCHAR(150) NOT NULL DEFAULT N'',   -- IF titular (referencial)
+  InspectorSuplente NVARCHAR(150) NOT NULL DEFAULT N'', -- IF suplente (referencial)
   CorreoAprobador NVARCHAR(254) NOT NULL DEFAULT N'',   -- a esta dirección se abre el aviso (mailto:)
   Activo          BIT           NOT NULL DEFAULT 1,
   CreadoEn        DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
@@ -234,6 +236,9 @@ CREATE TABLE bitacora.Auditoria (                          -- solo anexar
   Detalle    NVARCHAR(500) NOT NULL DEFAULT N''
 );
 
+-- Únicos sin distinguir mayúsculas SOLO si la intercalación (collation) de la base es _CI_; el DBA debe confirmarlo.
+CREATE UNIQUE INDEX UX_Contrato_CodDeaf ON bitacora.Contrato(CodDeaf) WHERE CodDeaf IS NOT NULL;
+CREATE UNIQUE INDEX UX_Unidad_Contrato_Nombre ON bitacora.Unidad(ContratoId, Nombre);
 CREATE INDEX IX_UsuarioContrato_Contrato ON bitacora.UsuarioContrato(ContratoId) INCLUDE (Activo);
 CREATE INDEX IX_Solicitud_Contrato       ON bitacora.Solicitud(ContratoId, Estado);
 CREATE INDEX IX_HistOf_Contrato          ON bitacora.HistorialOficial(ContratoId, AprobadoEn DESC);

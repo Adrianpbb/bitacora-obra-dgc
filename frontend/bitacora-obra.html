@@ -377,6 +377,21 @@
   .ok-box{ background:var(--good-soft); color:var(--good); border-radius:10px; padding:10px 14px; font-weight:700; font-size:13.5px; margin-bottom:12px; }
   a.btn{ display:inline-block; text-decoration:none; }
 
+  /* ---------- carga masiva y subsectores ---------- */
+  .imp-box{ display:flex; flex-direction:column; gap:8px; }
+  .imp-box .helper{ margin:0; }
+  .imp-res{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:10px 0; }
+  tr.fila-error td{ background:var(--bad-soft); }
+  .errs{ color:var(--bad); font-weight:600; font-size:11.5px; }
+  .uc{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:10px; }
+  .uc > summary{ cursor:pointer; padding:12px 16px; font-weight:700; display:flex; gap:10px; align-items:center; flex-wrap:wrap; list-style:none; }
+  .uc > summary::-webkit-details-marker{ display:none; }
+  .uc > summary::before{ content:"▸"; color:var(--ink-soft); }
+  .uc[open] > summary::before{ content:"▾"; }
+  .uc-body{ padding:0 16px 14px; }
+  .uc-add{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .uc-add input{ flex:1; min-width:220px; }
+
   /* ---------- notificaciones ---------- */
   .appbar-side{ position:relative; }
   .btn-bell{ position:relative; font:inherit; font-size:17px; line-height:1; padding:7px 11px; border-radius:7px; background:rgba(255,255,255,.08); color:#EDF1F7; border:1px solid rgba(255,255,255,.2); cursor:pointer; }
@@ -555,11 +570,22 @@
       <section id="panel-config" class="panel">
         <div class="panel-head"><div><h2>Configuración</h2><p>Contratos, unidades y la línea base contractual de hitos. Nada se borra: se desactiva o se marca como eliminado.</p></div></div>
         <p class="section-title">Contratos</p>
-        <div class="table-wrap"><table><thead><tr><th>Contrato</th><th>Nombra sus unidades como</th><th>Inspector fiscal (referencial)</th><th>Activo</th><th></th></tr></thead><tbody id="cfContratos"></tbody></table></div>
+        <div class="card imp-box">
+          <strong>Carga de contratos por Excel o CSV</strong>
+          <p class="helper">Descarga la plantilla, complétala y súbela. Se valida todo antes de guardar: verás los errores fila por fila y, si hay alguno, no se importa nada. Un COD_DEAF que ya existe actualiza ese contrato; nunca se borra nada.</p>
+          <div class="btn-row" style="justify-content:flex-start;"><button class="btn secondary small js-plantilla" data-tipo="contratos" data-formato="xlsx" type="button">Descargar plantilla (.xlsx)</button><button class="btn secondary small js-plantilla" data-tipo="contratos" data-formato="csv" type="button">Descargar plantilla (.csv)</button><button class="btn small js-subir" data-tipo="contratos" type="button">Subir Excel / CSV</button><input type="file" id="impContratosFile" data-tipo="contratos" accept=".xlsx,.csv" hidden aria-label="Archivo de contratos"></div>
+          <div id="impContratosBox"></div>
+        </div>
+        <div class="table-wrap" style="margin-top:12px;"><table><thead><tr><th>COD_DEAF</th><th>Contrato</th><th>Nombra sus unidades como</th><th>IF titular (referencial)</th><th>IF suplente (referencial)</th><th>Correo del aprobador</th><th>Activo</th><th></th></tr></thead><tbody id="cfContratos"></tbody></table></div>
         <div style="margin-top:10px;"><button class="btn secondary small" type="button" id="btnAddContrato">+ Agregar contrato</button></div>
-        <p class="section-title">Unidades</p>
-        <div class="table-wrap"><table><thead><tr><th>Unidad</th><th>Contrato</th><th>Activa</th><th></th></tr></thead><tbody id="cfUnidades"></tbody></table></div>
-        <div style="margin-top:10px;"><button class="btn secondary small" type="button" id="btnAddUnidad">+ Agregar unidad</button></div>
+        <p class="section-title">Unidades y subsectores</p>
+        <div class="card imp-box">
+          <strong>Carga de subsectores por Excel o CSV</strong>
+          <p class="helper">Columnas: COD_DEAF del contrato, nombre del subsector y activo (SI/NO). Si el subsector ya existe en ese contrato, solo se actualiza su estado.</p>
+          <div class="btn-row" style="justify-content:flex-start;"><button class="btn secondary small js-plantilla" data-tipo="unidades" data-formato="xlsx" type="button">Descargar plantilla (.xlsx)</button><button class="btn secondary small js-plantilla" data-tipo="unidades" data-formato="csv" type="button">Descargar plantilla (.csv)</button><button class="btn small js-subir" data-tipo="unidades" type="button">Subir Excel / CSV</button><input type="file" id="impUnidadesFile" data-tipo="unidades" accept=".xlsx,.csv" hidden aria-label="Archivo de subsectores"></div>
+          <div id="impUnidadesBox"></div>
+        </div>
+        <div id="cfUnidades" style="margin-top:12px;"></div>
         <p class="section-title">Hitos (línea base contractual)</p>
         <div class="table-wrap"><table><thead><tr><th>Hito</th><th>Unidad</th><th>Etapa / tipo</th><th>F. contractual</th><th></th></tr></thead><tbody id="cfHitos"></tbody></table></div>
         <div style="margin-top:10px;"><button class="btn secondary small" type="button" id="btnAddHito">+ Agregar hito</button></div>
@@ -1011,7 +1037,7 @@
       recibos:Object.create(null), recibosCargados:Object.create(null), cuentas:Object.create(null),
       expRadar:new Set(), expHist:new Set(), expanded:new Set(), confirmar:new Set(), rechazando:new Set(), rechazoTexto:Object.create(null),
       solFiltro:'PENDIENTE_APROBACION', permEdits:Object.create(null), permNuevos:[], permHits:[], pbSoloCentral:false,
-      leidoTs:0, notifAbierto:false, modal:null, correoEdits:Object.create(null), gbFiltro:'todo', gbLimite:10
+      leidoTs:0, notifAbierto:false, modal:null, correoEdits:Object.create(null), gbFiltro:'todo', gbLimite:10, imp:{ contratos:null, unidades:null }, uAbierto:Object.create(null)
     };
   }
   function fail(msg){ var e = new Error(msg); e.code = 'validacion'; return e; }
@@ -1237,16 +1263,66 @@
       await db.doc('permisos/' + uid).set({ rol:rol, contratos:cs, rolesContrato: rol === 'if' ? rc : {}, correo:correo, activo: e.activo === true, actualizadoTs: Date.now(), actualizadoPor: myUid });
     },
     saveContrato: async function(id, f){
-      var data = { nombre: cleanStr(f.nombre, LIM.nombre), unidadLabel: cleanStr(f.unidadLabel, LIM.label), inspectorNombre: cleanStr(f.inspectorNombre, LIM.inspector), activo: f.activo !== false };
+      if(Session.role !== 'admin') throw fail('Solo el administrador gestiona contratos.');
+      var mail = cleanStr(f.correoAprobador, LIM.correo);
+      if(mail && !cleanEmail(mail)) throw fail('El correo del aprobador no tiene un formato válido.');
+      var data = { nombre: cleanStr(f.nombre, LIM.nombre), codDeaf: cleanStr(f.codDeaf, LIM.codDeaf), unidadLabel: cleanStr(f.unidadLabel, LIM.label), inspectorNombre: cleanStr(f.inspectorNombre, LIM.inspector), inspectorSuplente: cleanStr(f.inspectorSuplente, LIM.inspector), correoAprobador: cleanEmail(mail), activo: f.activo !== false };
       if(!data.nombre) throw fail('El contrato necesita un nombre.');
+      if(data.codDeaf){
+        if(!COD_DEAF_RE.test(data.codDeaf)) throw fail('COD_DEAF solo admite letras, números y . _ - /');
+        if(contratos.some(function(c){ return c.id !== id && c.codDeaf && c.codDeaf.toLowerCase() === data.codDeaf.toLowerCase(); })) throw fail('Ya existe otro contrato con ese COD_DEAF.');
+      }
       return id ? db.doc('contratos/' + id).set(data) : db.collection('contratos').add(data);
     },
     saveUnidad: async function(id, f){
+      if(Session.role !== 'admin') throw fail('Solo el administrador gestiona subsectores.');
       var cid = cleanId(f.contratoId);
       if(!cid || !findContrato(cid)) throw fail('Elige un contrato válido.');
       var data = { contratoId:cid, nombre: cleanStr(f.nombre, LIM.nombre), activo: f.activo === true };
-      if(!data.nombre) throw fail('La unidad necesita un nombre.');
+      if(!data.nombre) throw fail('El subsector necesita un nombre.');
+      if(State.unidades.some(function(u){ return u.id !== id && u.contratoId === cid && u.nombre.toLowerCase() === data.nombre.toLowerCase(); })) throw fail('Ese contrato ya tiene un subsector con ese nombre.');
       return id ? db.doc('unidades/' + id).set(data) : db.collection('unidades').add(data);
+    },
+    importarContratos: async function(items){
+      if(Session.role !== 'admin') throw fail('Solo el administrador carga contratos.');
+      if(!puedeAprobar()) throw fail('Tu cuenta no tiene nivel Editor: el servidor rechazaría la carga.');
+      if(!items.length || items.some(function(i){ return i.errores.length; })) throw fail('Corrige los errores del archivo antes de importar.');
+      items.forEach(function(i){
+        var cod = i.datos.codDeaf.toLowerCase(), n = contratos.filter(function(c){ return c.codDeaf && c.codDeaf.toLowerCase() === cod; }).length;
+        if((i.accion === 'crear' && n) || (i.accion !== 'crear' && n !== 1)) throw fail('Los contratos cambiaron mientras revisabas el archivo. Vuelve a subirlo.');
+      });
+      var r = { creados:0, actualizados:0, iguales:0 };
+      for(var k = 0; k < items.length; k++){
+        var i = items[k], d = i.datos;
+        var campos = { nombre:d.nombre, unidadLabel:d.unidadLabel, inspectorNombre:d.inspectorNombre, inspectorSuplente:d.inspectorSuplente, correoAprobador:d.correoAprobador };
+        if(i.accion === 'crear') campos.codDeaf = d.codDeaf;   // al actualizar se conserva el COD_DEAF guardado
+        try{
+          if(i.accion === 'crear'){ await db.collection('contratos').add(Object.assign({ activo:true }, campos)); r.creados++; }
+          else if(i.accion === 'actualizar'){ await db.doc('contratos/' + i.id).update(campos); r.actualizados++; }
+          else r.iguales++;
+        }catch(e){ console.error(e); throw fail('Se importaron ' + (r.creados + r.actualizados) + ' de ' + items.length + ' filas y falló la fila ' + i.fila + '. Revisa la lista y vuelve a subir el archivo (las filas ya cargadas quedarán "sin cambios").'); }
+      }
+      return r;
+    },
+    importarUnidades: async function(items){
+      if(Session.role !== 'admin') throw fail('Solo el administrador carga subsectores.');
+      if(!puedeAprobar()) throw fail('Tu cuenta no tiene nivel Editor: el servidor rechazaría la carga.');
+      if(!items.length || items.some(function(i){ return i.errores.length; })) throw fail('Corrige los errores del archivo antes de importar.');
+      var r = { creados:0, actualizados:0, iguales:0 };
+      for(var k = 0; k < items.length; k++){
+        var i = items[k];
+        try{
+          if(i.accion === 'crear'){
+            if(State.unidades.some(function(u){ return u.contratoId === i.contratoId && u.nombre.toLowerCase() === i.datos.nombre.toLowerCase(); })) throw fail('Los subsectores cambiaron mientras revisabas el archivo. Vuelve a subirlo.');
+            await db.collection('unidades').add({ contratoId:i.contratoId, nombre:i.datos.nombre, activo:i.datos.activo }); r.creados++;
+          } else if(i.accion === 'actualizar'){ await db.doc('unidades/' + i.id).update({ activo:i.datos.activo }); r.actualizados++; }
+          else r.iguales++;
+        }catch(e){
+          if(e && e.code === 'validacion') throw e;
+          console.error(e); throw fail('Se importaron ' + (r.creados + r.actualizados) + ' de ' + items.length + ' filas y falló la fila ' + i.fila + '. Vuelve a subir el archivo.');
+        }
+      }
+      return r;
     },
     saveHitoBase: async function(id, f){
       var u = findIn(State.unidades, cleanId(f.unidadId));
@@ -1328,6 +1404,313 @@
       await db.doc('problematicas/' + p.id).update({ isDeleted:true, eliminadoTs: Date.now(), eliminadoPor: myUid });
     }
   };
+
+  /* =================================================================
+     5b. EXCEL Y CSV SIN LIBRERÍAS (corre desde disco y sin internet)
+         .xlsx = ZIP de XML. Se escribe con método "sin compresión" y se lee
+         también el "deflate" que usa Excel, con DecompressionStream del
+         navegador. Solo se lee la primera hoja; nada se ejecuta (ni macros
+         ni fórmulas): cada celda se toma como texto y pasa por la validación.
+     ================================================================= */
+  var XL = (function(){
+    var enc = new TextEncoder(), dec = new TextDecoder('utf-8');
+    var MAX_BYTES = 2 * 1024 * 1024, MAX_DESCOMPRIMIDO = 12 * 1024 * 1024, MAX_FILAS = 2000, MAX_COLS = 30;
+    var CRC = (function(){ var t = new Uint32Array(256); for(var n = 0; n < 256; n++){ var c = n; for(var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; } return t; })();
+    function crc32(b){ var c = 0xFFFFFFFF; for(var i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+    function falla(msg){ var e = new Error(msg); e.code = 'validacion'; return e; }
+    function xmlEsc(s){ return String(s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function colNombre(i){ var s = ''; i++; while(i > 0){ var m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+    function colIndice(ref){ var m = /^([A-Z]+)/.exec(ref || ''); if(!m) return -1; var n = 0; for(var i = 0; i < m[1].length; i++) n = n * 26 + (m[1].charCodeAt(i) - 64); return n - 1; }
+
+    function zip(archivos){
+      var partes = [], central = [], offset = 0;
+      archivos.forEach(function(f){
+        var nombre = enc.encode(f.nombre), crc = crc32(f.datos), len = f.datos.length;
+        var lh = new Uint8Array(30 + nombre.length), v = new DataView(lh.buffer);
+        v.setUint32(0, 0x04034b50, true); v.setUint16(4, 20, true); v.setUint16(6, 0x0800, true); v.setUint16(8, 0, true);
+        v.setUint16(10, 0, true); v.setUint16(12, 0x21, true); v.setUint32(14, crc, true); v.setUint32(18, len, true); v.setUint32(22, len, true);
+        v.setUint16(26, nombre.length, true); lh.set(nombre, 30);
+        var ch = new Uint8Array(46 + nombre.length), c = new DataView(ch.buffer);
+        c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true);
+        c.setUint16(12, 0, true); c.setUint16(14, 0x21, true); c.setUint32(16, crc, true); c.setUint32(20, len, true); c.setUint32(24, len, true);
+        c.setUint16(28, nombre.length, true); c.setUint32(42, offset, true); ch.set(nombre, 46);
+        partes.push(lh, f.datos); central.push(ch); offset += lh.length + len;
+      });
+      var cdTam = central.reduce(function(s, x){ return s + x.length; }, 0), fin = new Uint8Array(22), e = new DataView(fin.buffer);
+      e.setUint32(0, 0x06054b50, true); e.setUint16(8, archivos.length, true); e.setUint16(10, archivos.length, true); e.setUint32(12, cdTam, true); e.setUint32(16, offset, true);
+      var todo = partes.concat(central, [fin]), total = todo.reduce(function(s, x){ return s + x.length; }, 0), out = new Uint8Array(total), p = 0;
+      todo.forEach(function(x){ out.set(x, p); p += x.length; });
+      return out;
+    }
+    function hojaXml(filas){
+      var anchos = [];
+      filas.forEach(function(f){ f.forEach(function(v, i){ anchos[i] = Math.max(anchos[i] || 8, Math.min(60, String(v).length + 3)); }); });
+      return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols>' + anchos.map(function(a, i){ return '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + a + '" customWidth="1"/>'; }).join('') + '</cols><sheetData>' +
+        filas.map(function(f, r){ return '<row r="' + (r + 1) + '">' + f.map(function(v, i){ return '<c r="' + colNombre(i) + (r + 1) + '" t="inlineStr"' + (r === 0 ? ' s="1"' : '') + '><is><t xml:space="preserve">' + xmlEsc(v) + '</t></is></c>'; }).join('') + '</row>'; }).join('') + '</sheetData></worksheet>';
+    }
+    /* hojas: [{nombre, filas:[[texto,...],...]}] → Uint8Array con un .xlsx válido */
+    function escribirXlsx(hojas){
+      var H = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+      var a = [
+        { nombre:'[Content_Types].xml', texto: H + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' + hojas.map(function(h, i){ return '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'; }).join('') + '</Types>' },
+        { nombre:'_rels/.rels', texto: H + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+        { nombre:'xl/workbook.xml', texto: H + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + hojas.map(function(h, i){ return '<sheet name="' + xmlEsc(h.nombre) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>'; }).join('') + '</sheets></workbook>' },
+        { nombre:'xl/_rels/workbook.xml.rels', texto: H + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + hojas.map(function(h, i){ return '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>'; }).join('') + '<Relationship Id="rId' + (hojas.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+        { nombre:'xl/styles.xml', texto: H + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="49" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1"/></cellXfs></styleSheet>' }
+      ].concat(hojas.map(function(h, i){ return { nombre:'xl/worksheets/sheet' + (i + 1) + '.xml', texto: hojaXml(h.filas) }; }));
+      return zip(a.map(function(x){ return { nombre:x.nombre, datos: enc.encode(x.texto) }; }));
+    }
+
+    async function inflar(bytes, tope){
+      if(typeof DecompressionStream !== 'function') throw falla('Este navegador no puede leer archivos .xlsx comprimidos. Usa la plantilla CSV o un navegador actualizado (Chrome / Edge).');
+      var rd = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader(), partes = [], total = 0;
+      for(;;){
+        var r = await rd.read(); if(r.done) break;
+        total += r.value.length; if(total > tope) throw falla('El archivo descomprimido es demasiado grande.');
+        partes.push(r.value);
+      }
+      var out = new Uint8Array(total), p = 0; partes.forEach(function(x){ out.set(x, p); p += x.length; });
+      return out;
+    }
+    async function abrirZip(buf){
+      var u8 = new Uint8Array(buf), v = new DataView(buf), i = u8.length - 22;
+      for(; i >= Math.max(0, u8.length - 65557); i--) if(v.getUint32(i, true) === 0x06054b50) break;
+      if(i < 0 || v.getUint32(i, true) !== 0x06054b50) throw falla('El archivo no es un .xlsx válido.');
+      var n = v.getUint16(i + 10, true), p = v.getUint32(i + 16, true), ent = Object.create(null), total = 0;
+      if(n === 0xFFFF || p === 0xFFFFFFFF) throw falla('Archivo .xlsx no soportado (ZIP64).');
+      if(n > 2000) throw falla('El archivo tiene demasiados componentes.');
+      for(var k = 0; k < n; k++){
+        if(p + 46 > u8.length || v.getUint32(p, true) !== 0x02014b50) throw falla('El archivo no es un .xlsx válido.');
+        var ln = v.getUint16(p + 28, true), le = v.getUint16(p + 30, true), lc = v.getUint16(p + 32, true);
+        var nombre = dec.decode(u8.subarray(p + 46, p + 46 + ln));
+        ent[nombre] = { metodo:v.getUint16(p + 10, true), csize:v.getUint32(p + 20, true), usize:v.getUint32(p + 24, true), off:v.getUint32(p + 42, true) };
+        total += ent[nombre].usize; if(total > MAX_DESCOMPRIMIDO) throw falla('El archivo descomprimido es demasiado grande.');
+        p += 46 + ln + le + lc;
+      }
+      return { tiene: function(nombre){ return !!ent[nombre]; }, leer: async function(nombre){
+        var e = ent[nombre]; if(!e) throw falla('El .xlsx no tiene el componente ' + nombre + '.');
+        if(e.off + 30 > u8.length || v.getUint32(e.off, true) !== 0x04034b50) throw falla('El archivo no es un .xlsx válido.');
+        var ini = e.off + 30 + v.getUint16(e.off + 26, true) + v.getUint16(e.off + 28, true);
+        if(ini + e.csize > u8.length) throw falla('El archivo está incompleto.');
+        var datos = u8.subarray(ini, ini + e.csize);
+        if(e.metodo === 0) return dec.decode(datos);
+        if(e.metodo === 8) return dec.decode(await inflar(datos, Math.min(e.usize + 1024, MAX_DESCOMPRIMIDO)));
+        throw falla('El .xlsx usa una compresión no soportada.');
+      } };
+    }
+    function xml(texto){
+      var d = new DOMParser().parseFromString(texto, 'application/xml');
+      if(d.getElementsByTagName('parsererror').length) throw falla('El archivo no es un .xlsx válido.');
+      return d;
+    }
+    function hijos(el, local){ return Array.prototype.slice.call(el.getElementsByTagNameNS('*', local)); }
+    var NS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    /* → [{n: número de fila en la hoja, v: [texto, ...]}] */
+    async function leerXlsx(buf){
+      var z = await abrirZip(buf);
+      var wb = xml(await z.leer('xl/workbook.xml')), hoja = hijos(wb, 'sheet')[0];
+      if(!hoja) throw falla('El libro no tiene hojas.');
+      var rid = hoja.getAttributeNS(NS_REL, 'id') || hoja.getAttribute('r:id'), destino = null;
+      var rels = z.tiene('xl/_rels/workbook.xml.rels') ? hijos(xml(await z.leer('xl/_rels/workbook.xml.rels')), 'Relationship') : [];
+      rels.forEach(function(r){ if(r.getAttribute('Id') === rid) destino = r.getAttribute('Target'); });
+      if(!destino) destino = 'worksheets/sheet1.xml';
+      destino = destino.charAt(0) === '/' ? destino.slice(1) : 'xl/' + destino;
+      var compartidas = [];
+      if(z.tiene('xl/sharedStrings.xml')){
+        hijos(xml(await z.leer('xl/sharedStrings.xml')), 'si').forEach(function(si){
+          compartidas.push(hijos(si, 't').filter(function(t){ return !(t.parentNode && t.parentNode.localName === 'rPh'); }).map(function(t){ return t.textContent; }).join(''));
+        });
+      }
+      var filas = [];
+      hijos(xml(await z.leer(destino)), 'row').forEach(function(row){
+        if(filas.length > MAX_FILAS) return;
+        var n = +row.getAttribute('r') || (filas.length ? filas[filas.length - 1].n + 1 : 1), vals = [];
+        hijos(row, 'c').forEach(function(c){
+          var col = colIndice(c.getAttribute('r')); if(col < 0 || col >= MAX_COLS) return;
+          var t = c.getAttribute('t'), vEl = hijos(c, 'v')[0], txt = '';
+          if(t === 'inlineStr') txt = hijos(c, 't').map(function(x){ return x.textContent; }).join('');
+          else if(vEl){
+            txt = vEl.textContent;
+            if(t === 's') txt = compartidas[+txt] !== undefined ? compartidas[+txt] : '';
+            else if(t === 'b') txt = txt === '1' ? 'SI' : 'NO';
+            else if(t === 'e') txt = '';
+            else if(t !== 'str' && /^-?\d+\.0+$/.test(txt)) txt = txt.replace(/\.0+$/, '');
+          }
+          var fEl = hijos(c, 'f')[0];
+          if(fEl && !txt) txt = '=' + fEl.textContent;   // fórmula sin valor guardado: no se evalúa; se rechaza en la validación
+          vals[col] = txt;
+        });
+        for(var i = 0; i < vals.length; i++) if(vals[i] === undefined) vals[i] = '';
+        filas.push({ n:n, v:vals });
+      });
+      return filas;
+    }
+    function leerCsv(texto){
+      texto = texto.replace(/^﻿/, '');
+      var primera = texto.split(/\r\n|\n|\r/, 1)[0] || '';
+      var sep = (primera.split(';').length > primera.split(',').length) ? ';' : ((primera.split('\t').length > primera.split(',').length) ? '\t' : ',');
+      var filas = [], fila = [], campo = '', comillas = false, n = 1, hay = false;
+      function cerrarCampo(){ fila.push(campo); campo = ''; }
+      function cerrarFila(){ cerrarCampo(); if(fila.some(function(x){ return x !== ''; }) || hay) filas.push({ n:n, v:fila.slice(0, MAX_COLS) }); fila = []; hay = false; }
+      for(var i = 0; i < texto.length; i++){
+        var ch = texto[i];
+        if(comillas){ if(ch === '"'){ if(texto[i + 1] === '"'){ campo += '"'; i++; } else comillas = false; } else { if(ch === '\n') n++; campo += ch; } }
+        else if(ch === '"'){ comillas = true; hay = true; }
+        else if(ch === sep) cerrarCampo();
+        else if(ch === '\n' || ch === '\r'){ if(ch === '\r' && texto[i + 1] === '\n') i++; cerrarFila(); n++; if(filas.length > MAX_FILAS) break; }
+        else campo += ch;
+      }
+      if(campo !== '' || fila.length) cerrarFila();
+      return filas;
+    }
+    function csvTexto(filas){
+      return '﻿' + filas.map(function(f){ return f.map(function(v){ v = String(v); return /[;",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(';'); }).join('\r\n') + '\r\n';
+    }
+    async function leerArchivo(file){
+      if(!file) throw falla('Elige un archivo.');
+      if(file.size > MAX_BYTES) throw falla('El archivo pesa más de 2 MB.');
+      var nombre = String(file.name || '').toLowerCase(), buf = await file.arrayBuffer(), filas;
+      if(/\.xlsx$/.test(nombre)){
+        try{ filas = await leerXlsx(buf); }catch(e){ if(e && e.code === 'validacion') throw e; console.error(e); throw falla('No se pudo leer el archivo: ¿es un .xlsx válido?'); }
+      } else if(/\.csv$/.test(nombre)){
+        try{ filas = leerCsv(new TextDecoder('utf-8', { fatal:true }).decode(buf)); }catch(e){ throw falla('No se pudo leer el CSV: guárdalo como "CSV UTF-8".'); }
+      } else throw falla('Formato no permitido: usa .xlsx o .csv.');
+      if(filas.length > MAX_FILAS) throw falla('El archivo tiene más de ' + MAX_FILAS + ' filas.');
+      return filas;
+    }
+    function descargar(nombre, tipo, datos){
+      var url = URL.createObjectURL(new Blob([datos], { type:tipo })), a = document.createElement('a');
+      a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+    }
+    return { escribirXlsx:escribirXlsx, leerArchivo:leerArchivo, leerXlsx:leerXlsx, leerCsv:leerCsv, csvTexto:csvTexto, descargar:descargar };
+  })();
+
+  /* =================================================================
+     5c. CARGA MASIVA DE CONTRATOS Y SUBSECTORES (Excel / CSV)
+         Todo se valida antes de tocar la base y se muestra una vista previa
+         con los errores por fila. Si hay errores no se importa nada
+         (todo o nada). Lo que ya existe se actualiza por COD_DEAF; nada se borra.
+     ================================================================= */
+  var COD_DEAF_RE = /^[A-Za-z0-9][A-Za-z0-9._\-\/]{0,39}$/;
+  var MAX_FILAS_CARGA = 500;
+  var COLS_CONTRATOS = [
+    { k:'codDeaf', h:'COD_DEAF', alias:['cod_deaf', 'coddeaf', 'codigo_deaf'], req:true },
+    { k:'nombre', h:'NOMBRE_CONTRATO', alias:['nombre_contrato', 'nombre', 'contrato'], req:true },
+    { k:'unidadLabel', h:'TIPO_UNIDAD', alias:['tipo_unidad', 'tipo', 'unidadlabel', 'unidad_label'], req:true },
+    { k:'inspectorNombre', h:'IF_TITULAR', alias:['if_titular', 'inspector_titular', 'if'], req:true },
+    { k:'inspectorSuplente', h:'IF_SUPLENTE', alias:['if_suplente', 'inspector_suplente'], req:false },
+    { k:'correoAprobador', h:'CORREO_APROBADOR', alias:['correo_aprobador', 'correo', 'email_aprobador'], req:true }
+  ];
+  var COLS_UNIDADES = [
+    { k:'codDeaf', h:'COD_DEAF', alias:['cod_deaf', 'coddeaf', 'codigo_deaf'], req:true },
+    { k:'nombre', h:'SUBSECTOR', alias:['subsector', 'nombre_subsector', 'unidad', 'nombre'], req:true },
+    { k:'activo', h:'ACTIVO', alias:['activo', 'activa', 'vigente'], req:true }
+  ];
+  function normCabecera(s){ return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''); }
+  function mapearColumnas(filas, cols){
+    var cab = null, ini = 0;
+    for(var i = 0; i < filas.length; i++){ if(filas[i].v.some(function(x){ return String(x).trim() !== ''; })){ cab = filas[i]; ini = i; break; } }
+    if(!cab) return { error:'El archivo está vacío.' };
+    var idx = {}, vistos = Object.create(null), dup = [];
+    cab.v.forEach(function(h, j){
+      var n = normCabecera(h); if(!n) return;
+      cols.forEach(function(c){ if(c.alias.indexOf(n) !== -1 || normCabecera(c.h) === n){ if(vistos[c.k]) dup.push(c.h); else { vistos[c.k] = 1; idx[c.k] = j; } } });
+    });
+    if(dup.length) return { error:'Hay columnas repetidas: ' + dup.join(', ') + '.' };
+    var faltan = cols.filter(function(c){ return c.req && idx[c.k] === undefined; }).map(function(c){ return c.h; });
+    if(faltan.length) return { error:'Faltan columnas obligatorias: ' + faltan.join(', ') + '. Usa la plantilla.' };
+    return { idx:idx, datos: filas.slice(ini + 1).filter(function(f){ return f.v.some(function(x){ return String(x).trim() !== ''; }); }) };
+  }
+  function celda(f, idx, k){ return idx[k] === undefined ? '' : String(f.v[idx[k]] === undefined ? '' : f.v[idx[k]]); }
+  function textoCarga(raw, max, nombre, errores, obligatorio){
+    var s = cleanStr(raw, 100000);
+    if(!s){ if(obligatorio) errores.push(nombre + ' es obligatorio'); return ''; }
+    if(Array.from(s).length > max){ errores.push(nombre + ' supera ' + max + ' caracteres'); return s.slice(0, max); }
+    if(/^[=+\-@]/.test(s)) errores.push(nombre + ' no puede comenzar con = + - @');
+    return s;
+  }
+  function validarCargaContratos(filas, existentes){
+    var m = mapearColumnas(filas, COLS_CONTRATOS); if(m.error) return { error:m.error };
+    if(m.datos.length > MAX_FILAS_CARGA) return { error:'El archivo tiene más de ' + MAX_FILAS_CARGA + ' filas con datos.' };
+    if(!m.datos.length) return { error:'El archivo no tiene filas con datos (solo la cabecera).' };
+    var vistos = Object.create(null);
+    var items = m.datos.map(function(f){
+      var err = [], d = {};
+      d.codDeaf = textoCarga(celda(f, m.idx, 'codDeaf'), LIM.codDeaf, 'COD_DEAF', err, true);
+      if(d.codDeaf && !COD_DEAF_RE.test(d.codDeaf)) err.push('COD_DEAF solo admite letras, números y . _ - /');
+      d.nombre = textoCarga(celda(f, m.idx, 'nombre'), LIM.nombre, 'NOMBRE_CONTRATO', err, true);
+      d.unidadLabel = textoCarga(celda(f, m.idx, 'unidadLabel'), LIM.label, 'TIPO_UNIDAD', err, true);
+      d.inspectorNombre = textoCarga(celda(f, m.idx, 'inspectorNombre'), LIM.inspector, 'IF_TITULAR', err, true);
+      d.inspectorSuplente = textoCarga(celda(f, m.idx, 'inspectorSuplente'), LIM.inspector, 'IF_SUPLENTE', err, false);
+      var mail = cleanStr(celda(f, m.idx, 'correoAprobador'), 1000);
+      if(!mail) err.push('CORREO_APROBADOR es obligatorio'); else if(!cleanEmail(mail)) err.push('CORREO_APROBADOR no es un correo válido'); d.correoAprobador = cleanEmail(mail);
+      var clave = d.codDeaf.toLowerCase();
+      if(clave){ if(vistos[clave] !== undefined) { err.push('COD_DEAF repetido en el archivo (también en la fila ' + vistos[clave] + ')'); } else vistos[clave] = f.n; }
+      var accion = 'crear', id = null;
+      if(clave){
+        var coinc = existentes.filter(function(c){ return c.codDeaf && c.codDeaf.toLowerCase() === clave; });
+        if(coinc.length > 1) err.push('COD_DEAF repetido en la base (' + coinc.length + ' contratos): corrígelo en Configuración');
+        else if(coinc.length === 1){
+          var c0 = coinc[0]; id = c0.id;
+          var igual = c0.nombre === d.nombre && c0.unidadLabel === d.unidadLabel && c0.inspectorNombre === d.inspectorNombre && c0.inspectorSuplente === d.inspectorSuplente && c0.correoAprobador === d.correoAprobador;
+          accion = igual ? 'igual' : 'actualizar';
+        }
+      }
+      return { fila:f.n, datos:d, id:id, accion:accion, errores:err };
+    });
+    return { items:items };
+  }
+  function parseActivo(raw){
+    var s = normCabecera(raw);
+    if(s === '' || ['si', 's', '1', 'true', 'verdadero', 'activo', 'activa', 'x'].indexOf(s) !== -1) return true;
+    if(['no', 'n', '0', 'false', 'falso', 'inactivo', 'inactiva'].indexOf(s) !== -1) return false;
+    return null;
+  }
+  function validarCargaUnidades(filas, contratosLista, unidadesLista){
+    var m = mapearColumnas(filas, COLS_UNIDADES); if(m.error) return { error:m.error };
+    if(m.datos.length > MAX_FILAS_CARGA) return { error:'El archivo tiene más de ' + MAX_FILAS_CARGA + ' filas con datos.' };
+    if(!m.datos.length) return { error:'El archivo no tiene filas con datos (solo la cabecera).' };
+    var vistos = Object.create(null);
+    var items = m.datos.map(function(f){
+      var err = [], d = {};
+      d.codDeaf = textoCarga(celda(f, m.idx, 'codDeaf'), LIM.codDeaf, 'COD_DEAF', err, true);
+      d.nombre = textoCarga(celda(f, m.idx, 'nombre'), LIM.nombre, 'SUBSECTOR', err, true);
+      var act = parseActivo(celda(f, m.idx, 'activo'));
+      if(act === null) err.push('ACTIVO debe ser SI o NO'); d.activo = act !== false;
+      var cod = d.codDeaf.toLowerCase(), cs = contratosLista.filter(function(c){ return c.codDeaf && c.codDeaf.toLowerCase() === cod; }), contrato = null;
+      if(cod){
+        if(cs.length === 1) contrato = cs[0];
+        else if(cs.length > 1) err.push('COD_DEAF repetido en la base: corrígelo en Configuración');
+        else err.push('El COD_DEAF no existe: carga primero el contrato');
+      }
+      var clave = cod + '|' + d.nombre.toLowerCase();
+      if(cod && d.nombre){ if(vistos[clave] !== undefined) err.push('Subsector repetido en el archivo (también en la fila ' + vistos[clave] + ')'); else vistos[clave] = f.n; }
+      var accion = 'crear', id = null;
+      if(contrato){
+        var u = unidadesLista.filter(function(x){ return x.contratoId === contrato.id && x.nombre.toLowerCase() === d.nombre.toLowerCase(); })[0];
+        if(u){ id = u.id; accion = u.activo === d.activo ? 'igual' : 'actualizar'; }
+      }
+      return { fila:f.n, datos:d, contratoId: contrato ? contrato.id : null, contratoNombre: contrato ? contrato.nombre : '', id:id, accion:accion, errores:err };
+    });
+    return { items:items };
+  }
+  function plantillaContratos(){
+    return [{ nombre:'Contratos', filas:[COLS_CONTRATOS.map(function(c){ return c.h; })] },
+      { nombre:'Instrucciones', filas:[['Campo', 'Qué poner'],
+        ['COD_DEAF', 'Código único del contrato (letras, números y . _ - /). Si ya existe en la Bitácora, la fila actualiza ese contrato.'],
+        ['NOMBRE_CONTRATO', 'Nombre del contrato (obligatorio).'], ['TIPO_UNIDAD', 'Cómo se llaman sus subsectores: Sector, Hospital, Aeródromo, Cárcel… (obligatorio).'],
+        ['IF_TITULAR', 'Cargo o nombre referencial del Inspector Fiscal titular (obligatorio).'], ['IF_SUPLENTE', 'Cargo o nombre referencial del suplente (opcional).'],
+        ['CORREO_APROBADOR', 'Correo del aprobador del contrato (obligatorio). A esta dirección se abre el aviso de solicitudes.'],
+        ['Notas', 'Nada se borra: los contratos que no estén en el archivo quedan como están. Use solo la hoja "Contratos". Las filas con errores se muestran antes de confirmar y, si hay alguna, no se importa nada.']] }];
+  }
+  function plantillaUnidades(){
+    return [{ nombre:'Subsectores', filas:[COLS_UNIDADES.map(function(c){ return c.h; })] },
+      { nombre:'Instrucciones', filas:[['Campo', 'Qué poner'],
+        ['COD_DEAF', 'Código del contrato al que pertenece el subsector. El contrato debe existir (carga primero los contratos).'],
+        ['SUBSECTOR', 'Nombre del subsector o unidad (obligatorio).'], ['ACTIVO', 'SI o NO (vacío = SI). NO desactiva el subsector; nunca se borra.'],
+        ['Notas', 'Si el subsector ya existe en ese contrato (mismo nombre), solo se actualiza su estado Activo.']] }];
+  }
 
   /* ---- correo con mailto: (el navegador no envía solo: abre el programa de correo) ---- */
   function recortar(t, n){ var cps = Array.from(String(t || '')); return cps.length > n ? cps.slice(0, n - 1).join('') + '…' : cps.join(''); }
@@ -1949,11 +2332,15 @@
   /* ---- configuración (admin) ---- */
   function renderConfig(){
     setHTML($('#cfContratos'), contratos.map(function(c){
-      return html`<tr data-id="${c.id}"><td><input type="text" class="f-nombre" maxlength="${LIM.nombre}" value="${c.nombre}" aria-label="Nombre del contrato"></td><td><input type="text" class="f-unidadlabel" maxlength="${LIM.label}" value="${c.unidadLabel}" placeholder="Sector / Hospital / Aeropuerto / Cárcel" aria-label="Nombre de sus unidades"></td><td><input type="text" class="f-inspector" maxlength="${LIM.inspector}" value="${c.inspectorNombre}" aria-label="Inspector fiscal"></td><td style="text-align:center;"><input type="checkbox" class="f-activo" aria-label="Activo"${c.activo ? ' checked' : ''}></td><td><button type="button" class="btn secondary small js-save">Guardar</button></td></tr>`;
+      return html`<tr data-id="${c.id}"><td><input type="text" class="f-coddeaf mono" maxlength="${LIM.codDeaf}" value="${c.codDeaf}" placeholder="COD_DEAF" aria-label="COD_DEAF" style="min-width:110px;"></td><td><input type="text" class="f-nombre" maxlength="${LIM.nombre}" value="${c.nombre}" aria-label="Nombre del contrato" style="min-width:200px;"></td><td><input type="text" class="f-unidadlabel" maxlength="${LIM.label}" value="${c.unidadLabel}" placeholder="Sector / Hospital / Aeropuerto / Cárcel" aria-label="Nombre de sus unidades"></td><td><input type="text" class="f-inspector" maxlength="${LIM.inspector}" value="${c.inspectorNombre}" aria-label="IF titular"></td><td><input type="text" class="f-suplente" maxlength="${LIM.inspector}" value="${c.inspectorSuplente}" aria-label="IF suplente"></td><td><input type="email" class="f-correo-c" maxlength="${LIM.correo}" value="${c.correoAprobador}" placeholder="aprobador@dominio.cl" aria-label="Correo del aprobador" style="min-width:190px;"></td><td style="text-align:center;"><input type="checkbox" class="f-activo" aria-label="Activo"${c.activo ? ' checked' : ''}></td><td><button type="button" class="btn secondary small js-save">Guardar</button></td></tr>`;
     }));
-    setHTML($('#cfUnidades'), State.unidades.map(function(u){
-      return html`<tr data-id="${u.id}"><td><input type="text" class="f-nombre" maxlength="${LIM.nombre}" value="${u.nombre}" aria-label="Nombre de la unidad"></td><td><select class="f-contrato" aria-label="Contrato">${contratos.map(function(c){ return html`<option value="${c.id}"${c.id === u.contratoId ? ' selected' : ''}>${c.nombre}</option>`; })}</select></td><td style="text-align:center;"><input type="checkbox" class="f-activo" aria-label="Activa"${u.activo ? ' checked' : ''}></td><td><button type="button" class="btn secondary small js-save">Guardar</button></td></tr>`;
-    }));
+    setHTML($('#cfUnidades'), contratos.length ? contratos.map(function(c){
+      var us = State.unidades.filter(function(u){ return u.contratoId === c.id; }), act = us.filter(function(u){ return u.activo; }).length;
+      var abierto = State.uAbierto[c.id] !== undefined ? State.uAbierto[c.id] : contratos.length <= 3;
+      return html`<details class="uc" data-cid="${c.id}"${abierto ? ' open' : ''}><summary>${c.nombre}${c.codDeaf ? html` <span class="pill muted mono">${c.codDeaf}</span>` : ''}<span class="pill accent">${act} activo${act === 1 ? '' : 's'}</span>${us.length > act ? pill('muted', (us.length - act) + ' desactivado' + (us.length - act === 1 ? '' : 's')) : ''}${c.activo ? '' : pill('muted', 'contrato inactivo')}</summary><div class="uc-body">${us.length ? html`<div class="table-wrap"><table class="tbl-compact" style="min-width:420px;"><thead><tr><th>${c.unidadLabel || 'Subsector'}</th><th>Activo</th><th></th></tr></thead><tbody>${us.map(function(u){
+        return html`<tr data-id="${u.id}" data-cid="${c.id}"><td><input type="text" class="f-nombre" maxlength="${LIM.nombre}" value="${u.nombre}" aria-label="Nombre del subsector"></td><td style="text-align:center;"><input type="checkbox" class="f-activo" aria-label="Activo"${u.activo ? ' checked' : ''}></td><td><button type="button" class="btn secondary small js-save">Guardar</button></td></tr>`;
+      })}</tbody></table></div>` : html`<p class="helper" style="margin:0;">Este contrato aún no tiene subsectores.</p>`}<div class="uc-add"><input type="text" class="f-nueva" maxlength="${LIM.nombre}" placeholder="Nombre del nuevo subsector" aria-label="${'Nuevo subsector de ' + c.nombre}"><button type="button" class="btn small js-add-unidad">+ Agregar subsector</button></div></div></details>`;
+    }) : html`<div class="empty-state">Primero crea o carga los contratos.</div>`);
     setHTML($('#cfHitos'), State.hitos.filter(function(h){ return !h.isDeleted; }).map(function(h){
       var conf = State.confirmar.has('hito-' + h.id);
       return html`<tr data-id="${h.id}"><td><input type="text" class="f-nombre" maxlength="${LIM.nombre}" value="${h.nombre}" placeholder="Nombre del hito" aria-label="Nombre del hito"></td><td><select class="f-unidad" aria-label="Unidad">${State.unidades.map(function(x){ return html`<option value="${x.id}"${x.id === h.unidadId ? ' selected' : ''}>${contratoNombre(x.contratoId)} · ${x.nombre}</option>`; })}</select></td><td><select class="f-tipo" aria-label="Etapa">${HITO_TIPOS.map(function(t){ return html`<option value="${t}"${t === h.tipo ? ' selected' : ''}>${t}</option>`; })}</select></td><td><input type="date" class="f-fcontractual" value="${h.fechaContractual || ''}" aria-label="Fecha contractual"></td><td>${conf ? html`<span class="confirm-inline">¿Eliminar? <button type="button" class="btn danger small js-hito-del-si">Sí</button><button type="button" class="btn secondary small js-hito-del-no">No</button></span>` : html`<button type="button" class="btn secondary small js-save">Guardar</button> <button type="button" class="btn ghost-danger small js-hito-del">Eliminar</button>`}</td></tr>`;
@@ -2066,7 +2453,7 @@
     Session.role = null; Session.contratos = null; Session.rolesContrato = null; Session.contratoActivo = null; Session.tab = null; Session.preview = false;
     State = estadoVacio();
     $('#modalBack').hidden = true; document.body.style.overflow = ''; $('#notifPanel').hidden = true; $('#btnNotif').hidden = true;
-    ['#ctKpis', '#ctCards', '#gbKpis', '#gbCards', '#gbAlertas', '#gbFiltros', '#gbAprobaciones', '#solFiltros', '#solLista', '#bjKpis', '#bjLista', '#bjAlertas', '#hsBody', '#permTabla', '#permResultados', '#cfContratos', '#cfUnidades', '#cfHitos', '#permAprobadores', '#kanbanBoard', '#resueltasBody', '#cgAvUnidad', '#cgAvInfo', '#avTimeline', '#avContrato', '#htContrato', '#ganttWrap', '#modalBody', '#notifPanel', '#pbUnidad', '#whoami', '#tabsNav'].forEach(function(sel){ setHTML($(sel), ''); });
+    ['#ctKpis', '#ctCards', '#gbKpis', '#gbCards', '#gbAlertas', '#gbFiltros', '#gbAprobaciones', '#solFiltros', '#solLista', '#bjKpis', '#bjLista', '#bjAlertas', '#hsBody', '#permTabla', '#permResultados', '#cfContratos', '#cfUnidades', '#cfHitos', '#permAprobadores', '#impContratosBox', '#impUnidadesBox', '#kanbanBoard', '#resueltasBody', '#cgAvUnidad', '#cgAvInfo', '#avTimeline', '#avContrato', '#htContrato', '#ganttWrap', '#modalBody', '#notifPanel', '#pbUnidad', '#whoami', '#tabsNav'].forEach(function(sel){ setHTML($(sel), ''); });
     $('#formAvance').reset(); $('#formProblema').reset(); resetStakeholders();
     $('#appShell').hidden = true; $('#gate').hidden = false;
   }
@@ -2293,12 +2680,19 @@
   $('#cfContratos').addEventListener('click', function(e){
     if(!cerca(e.target, '.js-save') || Session.role !== 'admin') return;
     var tr = cerca(e.target, 'tr'), c = findContrato(cleanId(tr.getAttribute('data-id'))); if(!c) return;
-    conBoton(e.target, function(){ return Repo.saveContrato(c.id, { nombre: tr.querySelector('.f-nombre').value, unidadLabel: tr.querySelector('.f-unidadlabel').value, inspectorNombre: tr.querySelector('.f-inspector').value, activo: tr.querySelector('.f-activo').checked }).then(function(){ showToast('Contrato actualizado.'); }, function(err){ reportError(err, 'No se pudo guardar.'); }); });
+    conBoton(e.target, function(){ return Repo.saveContrato(c.id, { codDeaf: tr.querySelector('.f-coddeaf').value, nombre: tr.querySelector('.f-nombre').value, unidadLabel: tr.querySelector('.f-unidadlabel').value, inspectorNombre: tr.querySelector('.f-inspector').value, inspectorSuplente: tr.querySelector('.f-suplente').value, correoAprobador: tr.querySelector('.f-correo-c').value, activo: tr.querySelector('.f-activo').checked }).then(function(){ showToast('Contrato actualizado.'); }, function(err){ reportError(err, 'No se pudo guardar.'); }); });
   });
+  $('#cfUnidades').addEventListener('toggle', function(e){ var d = e.target; if(d && d.classList && d.classList.contains('uc')){ var cid = cleanId(d.getAttribute('data-cid')); if(cid) State.uAbierto[cid] = d.open; } }, true);
   $('#cfUnidades').addEventListener('click', function(e){
-    if(!cerca(e.target, '.js-save') || Session.role !== 'admin') return;
-    var tr = cerca(e.target, 'tr'), u = findIn(State.unidades, cleanId(tr.getAttribute('data-id'))); if(!u) return;
-    conBoton(e.target, function(){ return Repo.saveUnidad(u.id, { nombre: tr.querySelector('.f-nombre').value, contratoId: tr.querySelector('.f-contrato').value, activo: tr.querySelector('.f-activo').checked }).then(function(){ showToast('Unidad actualizada.'); }, function(err){ reportError(err, 'No se pudo guardar.'); }); });
+    if(Session.role !== 'admin') return;
+    var det = cerca(e.target, '.uc'), cid = det && cleanId(det.getAttribute('data-cid')); if(!cid) return;
+    if(cerca(e.target, '.js-save')){
+      var tr = cerca(e.target, 'tr'), u = findIn(State.unidades, cleanId(tr.getAttribute('data-id'))); if(!u) return;
+      conBoton(e.target, function(){ return Repo.saveUnidad(u.id, { nombre: tr.querySelector('.f-nombre').value, contratoId: u.contratoId, activo: tr.querySelector('.f-activo').checked }).then(function(){ showToast(tr.querySelector('.f-activo').checked ? 'Subsector guardado.' : 'Subsector guardado y desactivado (no se borra).'); }, function(err){ reportError(err, 'No se pudo guardar.'); }); });
+    } else if(cerca(e.target, '.js-add-unidad')){
+      var inp = det.querySelector('.f-nueva');
+      conBoton(e.target, function(){ return Repo.saveUnidad(null, { nombre: inp.value, contratoId: cid, activo:true }).then(function(){ inp.value = ''; showToast('Subsector agregado.'); }, function(err){ reportError(err, 'No se pudo crear el subsector.'); }); });
+    }
   });
   $('#cfHitos').addEventListener('click', function(e){
     if(Session.role !== 'admin') return;
@@ -2314,17 +2708,65 @@
                        : { nombre: tr.querySelector('.f-nombre').value, unidadId: tr.querySelector('.f-unidad').value, tipo: tr.querySelector('.f-tipo').value, fechaContractual: tr.querySelector('.f-fcontractual').value };
     conBoton(e.target, function(){ return Repo.saveHitoBase(h.id, datos).then(function(){ showToast(borrar ? 'Hito eliminado (queda marcado como eliminado).' : 'Hito actualizado.'); }, function(err){ reportError(err, 'No se pudo guardar el hito.'); }); });
   });
-  $('#btnAddContrato').addEventListener('click', function(){ if(Session.role === 'admin') Repo.saveContrato(null, { nombre:'Contrato nuevo', unidadLabel:'Sector', inspectorNombre:'' }).catch(function(err){ reportError(err, 'No se pudo crear el contrato.'); }); });
-  $('#btnAddUnidad').addEventListener('click', function(){
-    if(Session.role !== 'admin') return;
-    var c = contratos.filter(function(x){ return x.activo; })[0];
-    if(!c) return showToast('Primero crea un contrato.');
-    Repo.saveUnidad(null, { nombre:'Unidad nueva', contratoId:c.id, activo:true }).catch(function(err){ reportError(err, 'No se pudo crear la unidad.'); });
-  });
+  $('#btnAddContrato').addEventListener('click', function(){ if(Session.role === 'admin') Repo.saveContrato(null, { nombre:'Contrato nuevo', unidadLabel:'Sector', inspectorNombre:'', activo:true }).catch(function(err){ reportError(err, 'No se pudo crear el contrato.'); }); });
   $('#btnAddHito').addEventListener('click', function(){
     if(Session.role !== 'admin') return;
     var u = State.unidades[0]; if(!u) return showToast('Primero crea una unidad.');
     Repo.saveHitoBase(null, { unidadId:u.id, nombre:'Nuevo hito', tipo:'Ingeniería', fechaContractual: todayISO() }).catch(function(err){ reportError(err, 'No se pudo crear el hito.'); });
+  });
+
+  /* carga masiva por Excel / CSV */
+  var ACCION_PILL = { crear:['good', 'Nuevo'], actualizar:['accent', 'Actualiza'], igual:['muted', 'Sin cambios'] };
+  function renderImporte(tipo){
+    var box = $(tipo === 'contratos' ? '#impContratosBox' : '#impUnidadesBox'), im = State.imp[tipo];
+    if(!im){ setHTML(box, ''); return; }
+    if(im.error){ setHTML(box, html`<div class="sol-rechazo" role="alert"><strong>${im.archivo ? im.archivo + ': ' : ''}</strong>${im.error}</div>`); return; }
+    var n = { crear:0, actualizar:0, igual:0, error:0 };
+    im.items.forEach(function(i){ if(i.errores.length) n.error++; else n[i.accion]++; });
+    var esC = tipo === 'contratos';
+    setHTML(box, html`<div class="imp-res"><strong>${im.archivo}</strong>${pill('good', n.crear + ' nuevo' + (n.crear === 1 ? '' : 's'))}${pill('accent', n.actualizar + ' por actualizar')}${pill('muted', n.igual + ' sin cambios')}${n.error ? pill('bad', n.error + ' fila' + (n.error === 1 ? '' : 's') + ' con errores') : ''}</div><div class="table-wrap"><table class="tbl-compact"><thead><tr><th>Fila</th><th>COD_DEAF</th>${esC ? html`<th>Contrato</th><th>Tipo</th><th>IF titular</th><th>IF suplente</th><th>Correo aprobador</th>` : html`<th>Contrato</th><th>Subsector</th><th>Activo</th>`}<th>Resultado</th><th>Errores</th></tr></thead><tbody>${im.items.map(function(i){
+      var d = i.datos, a = i.errores.length ? ['bad', 'Error'] : ACCION_PILL[i.accion];
+      return html`<tr class="${i.errores.length ? 'fila-error' : ''}"><td class="mono">${i.fila}</td><td class="mono">${d.codDeaf}</td>${esC ? html`<td>${d.nombre}</td><td>${d.unidadLabel}</td><td>${d.inspectorNombre}</td><td>${d.inspectorSuplente}</td><td>${d.correoAprobador}</td>` : html`<td>${i.contratoNombre || '—'}</td><td>${d.nombre}</td><td>${d.activo ? 'SI' : 'NO'}</td>`}<td>${pill(a[0], a[1])}</td><td class="errs">${i.errores.join(' · ')}</td></tr>`;
+    })}</tbody></table></div><div class="btn-row" style="margin-top:10px;"><button type="button" class="btn secondary js-imp-no" data-tipo="${tipo}">Cancelar</button><button type="button" class="btn good js-imp-ok" data-tipo="${tipo}"${n.error || (!n.crear && !n.actualizar) ? ' disabled' : ''}>${n.error ? 'Corrige el archivo para importar' : (!n.crear && !n.actualizar ? 'Nada que importar' : 'Confirmar importación (' + (n.crear + n.actualizar) + ')')}</button></div>`);
+  }
+  function tipoImp(el){ var t = el && el.getAttribute && el.getAttribute('data-tipo'); return (t === 'contratos' || t === 'unidades') ? t : null; }
+  var MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  $('#panel-config').addEventListener('click', function(e){
+    if(Session.role !== 'admin') return;
+    var b = cerca(e.target, '.js-plantilla');
+    if(b){
+      var t = tipoImp(b), esC = t === 'contratos', pl = esC ? plantillaContratos() : plantillaUnidades();
+      if(!t) return;
+      if(b.getAttribute('data-formato') === 'csv') XL.descargar('plantilla_' + (esC ? 'contratos' : 'subsectores') + '.csv', 'text/csv;charset=utf-8', XL.csvTexto(pl[0].filas));
+      else XL.descargar('plantilla_' + (esC ? 'contratos' : 'subsectores') + '.xlsx', MIME_XLSX, XL.escribirXlsx(pl));
+      return;
+    }
+    b = cerca(e.target, '.js-subir');
+    if(b){ var tt = tipoImp(b); if(tt) $(tt === 'contratos' ? '#impContratosFile' : '#impUnidadesFile').click(); return; }
+    b = cerca(e.target, '.js-imp-no');
+    if(b){ var tn = tipoImp(b); if(tn){ State.imp[tn] = null; renderImporte(tn); } return; }
+    b = cerca(e.target, '.js-imp-ok');
+    if(b){
+      var to = tipoImp(b), im = to && State.imp[to]; if(!im || !im.items) return;
+      conBoton(b, function(){
+        return (to === 'contratos' ? Repo.importarContratos(im.items) : Repo.importarUnidades(im.items)).then(function(r){
+          State.imp[to] = null; renderImporte(to);
+          showToast('Importación lista: ' + r.creados + ' nuevo' + (r.creados === 1 ? '' : 's') + ', ' + r.actualizados + ' actualizado' + (r.actualizados === 1 ? '' : 's') + '.');
+        }, function(err){ reportError(err, 'No se pudo importar.'); });
+      });
+    }
+  });
+  $all('#impContratosFile, #impUnidadesFile').forEach(function(inp){
+    inp.addEventListener('change', async function(e){
+      var tipo = tipoImp(e.target), file = e.target.files && e.target.files[0]; if(!tipo || !file || Session.role !== 'admin') return;
+      try{
+        var filas = await XL.leerArchivo(file);
+        var res = tipo === 'contratos' ? validarCargaContratos(filas, contratos) : validarCargaUnidades(filas, contratos, State.unidades);
+        State.imp[tipo] = res.error ? { archivo:cleanStr(file.name, 120), error:res.error } : { archivo:cleanStr(file.name, 120), items:res.items };
+      }catch(err){ State.imp[tipo] = { archivo:cleanStr(file.name, 120), error: (err && err.code === 'validacion') ? err.message : 'No se pudo leer el archivo.' }; if(!(err && err.code === 'validacion')) console.error(err); }
+      e.target.value = '';
+      renderImporte(tipo);
+    });
   });
 
   // problemáticas

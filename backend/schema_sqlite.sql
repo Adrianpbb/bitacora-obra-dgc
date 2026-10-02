@@ -32,7 +32,9 @@ CREATE TABLE IF NOT EXISTS Contrato (
   Id              TEXT PRIMARY KEY CHECK (length(Id) BETWEEN 1 AND 64),
   Nombre          TEXT NOT NULL CHECK (length(Nombre) BETWEEN 1 AND 150),
   UnidadLabel     TEXT NOT NULL DEFAULT '' CHECK (length(UnidadLabel) <= 50),
-  InspectorNombre TEXT NOT NULL DEFAULT '' CHECK (length(InspectorNombre) <= 150),
+  CodDeaf         TEXT NULL CHECK (CodDeaf IS NULL OR (length(CodDeaf) BETWEEN 1 AND 40 AND CodDeaf NOT GLOB '*[^A-Za-z0-9._/-]*')),
+  InspectorNombre TEXT NOT NULL DEFAULT '' CHECK (length(InspectorNombre) <= 150),                 -- IF titular (referencial)
+  InspectorSuplente TEXT NOT NULL DEFAULT '' CHECK (length(InspectorSuplente) <= 150),             -- IF suplente (referencial)
   CorreoAprobador TEXT NOT NULL DEFAULT '' CHECK (length(CorreoAprobador) <= 254),     -- a esta dirección se abre el aviso (mailto:)
   Activo          INTEGER NOT NULL DEFAULT 1 CHECK (Activo IN (0, 1)),
   CreadoEn        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
@@ -258,6 +260,8 @@ CREATE TRIGGER IF NOT EXISTS ResPrev_NoBorrar BEFORE DELETE ON ProblematicaResol
 CREATE TRIGGER IF NOT EXISTS Auditoria_NoEditar BEFORE UPDATE ON Auditoria BEGIN SELECT RAISE(ABORT, 'Auditoría de solo anexar'); END;
 CREATE TRIGGER IF NOT EXISTS Auditoria_NoBorrar BEFORE DELETE ON Auditoria BEGIN SELECT RAISE(ABORT, 'Auditoría de solo anexar'); END;
 
+CREATE UNIQUE INDEX IF NOT EXISTS UX_Contrato_CodDeaf ON Contrato(CodDeaf COLLATE NOCASE) WHERE CodDeaf IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS UX_Unidad_Contrato_Nombre ON Unidad(ContratoId, Nombre COLLATE NOCASE);
 CREATE INDEX IF NOT EXISTS IX_UsuarioContrato_Contrato ON UsuarioContrato(ContratoId);
 CREATE INDEX IF NOT EXISTS IX_Unidad_Contrato          ON Unidad(ContratoId);
 CREATE INDEX IF NOT EXISTS IX_Hito_Contrato            ON Hito(ContratoId);

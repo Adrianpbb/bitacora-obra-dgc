@@ -311,5 +311,87 @@ class TestV10(Base):
             self.repo.listar_avisos(self.val)
 
 
+class TestCargasMasivas(Base):
+    """Carga de contratos y subsectores (v10, 2026-10-02): COD_DEAF, todo o nada, nada se borra."""
+
+    def fila(self, **kw):
+        base = {'codDeaf': 'DEAF-100', 'nombre': 'Contrato Nuevo', 'unidadLabel': 'Sector', 'inspectorNombre': 'IF Titular',
+                'inspectorSuplente': '', 'correoAprobador': 'jefe@example.org'}
+        base.update(kw)
+        return base
+
+    def test_crea_y_actualiza_por_cod_deaf_sin_borrar(self):
+        self.repo.guardar_contrato(self.admin, {'nombre': 'Red Aeroportuaria Austral', 'codDeaf': 'DEAF-001'}, self.c1)
+        r1 = self.repo.importar_contratos(self.admin, [self.fila(), self.fila(codDeaf='deaf-001', nombre='Red Austral II')])
+        self.assertEqual(r1, {'creados': 1, 'actualizados': 1, 'iguales': 0})
+        nombres = {c['CodDeaf']: c['Nombre'] for c in self.repo.listar_contratos(self.admin)}
+        self.assertEqual(nombres['DEAF-100'], 'Contrato Nuevo')
+        self.assertEqual(nombres['DEAF-001'], 'Red Austral II')
+        self.assertEqual(len(self.repo.listar_contratos(self.admin)), 3)          # el c2 sigue ahí
+        self.assertEqual(self.repo.importar_contratos(self.admin, [self.fila()])['iguales'], 1)
+
+    def test_actualizar_no_cambia_el_estado_activo(self):
+        self.repo.guardar_contrato(self.admin, {'nombre': 'X', 'codDeaf': 'DEAF-200', 'activo': False})
+        self.repo.importar_contratos(self.admin, [self.fila(codDeaf='DEAF-200')])
+        self.assertEqual(self.conn.execute("SELECT Activo FROM Contrato WHERE CodDeaf = 'DEAF-200'").fetchone()[0], 0)
+
+    def test_todo_o_nada_con_errores_por_fila(self):
+        malas = [self.fila(), self.fila(codDeaf=''), self.fila(correoAprobador='malo'), self.fila(nombre='=1+1', codDeaf='DEAF-300'),
+                 self.fila(codDeaf='DEAF-100'), self.fila(codDeaf='X Y', nombre='a')]
+        with self.assertRaises(r.ErrorCarga) as cm:
+            self.repo.importar_contratos(self.admin, malas)
+        self.assertEqual([n for n, _ in cm.exception.errores], [2, 3, 4, 5, 6])
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM Contrato WHERE CodDeaf IS NOT NULL").fetchone()[0], 0)   # nada se guardó
+
+    def test_cod_deaf_es_unico_tambien_en_la_base(self):
+        self.repo.guardar_contrato(self.admin, {'nombre': 'A', 'codDeaf': 'DEAF-1'})
+        with self.assertRaises(v.ErrorValidacion):
+            self.repo.guardar_contrato(self.admin, {'nombre': 'B', 'codDeaf': 'deaf-1'})
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.conn.execute("INSERT INTO Contrato (Id, Nombre, CodDeaf) VALUES ('zz', 'C', 'DEAF-1')")
+
+    def test_solo_admin_importa(self):
+        for ses in (self.val, self.inf, self.gab):
+            with self.assertRaises(r.AccesoDenegado):
+                self.repo.importar_contratos(ses, [self.fila()])
+            with self.assertRaises(r.AccesoDenegado):
+                self.repo.importar_unidades(ses, [{'codDeaf': 'X', 'nombre': 'Y', 'activo': True}])
+
+    def test_inyeccion_en_carga_se_guarda_como_texto(self):
+        carga = "x'); DROP TABLE Contrato; --"
+        self.repo.importar_contratos(self.admin, [self.fila(nombre=carga)])
+        self.assertEqual(self.conn.execute("SELECT Nombre FROM Contrato WHERE CodDeaf = 'DEAF-100'").fetchone()[0], carga)
+
+    def test_subsectores_crea_reactiva_y_no_borra(self):
+        self.repo.guardar_contrato(self.admin, {'nombre': 'Red Aeroportuaria Austral', 'codDeaf': 'DEAF-001'}, self.c1)
+        r1 = self.repo.importar_unidades(self.admin, [{'codDeaf': 'DEAF-001', 'nombre': 'Aeródromo Sur', 'activo': True},
+                                                      {'codDeaf': 'deaf-001', 'nombre': 'aeródromo norte', 'activo': False}])
+        self.assertEqual(r1, {'creados': 1, 'actualizados': 1, 'iguales': 0})
+        estados = {u['Nombre']: u['Activo'] for u in self.repo.listar_unidades(self.admin) if u['ContratoId'] == self.c1}
+        self.assertEqual(estados, {'Aeródromo Norte': 0, 'Aeródromo Sur': 1})
+
+    def test_subsectores_todo_o_nada(self):
+        self.repo.guardar_contrato(self.admin, {'nombre': 'Red Aeroportuaria Austral', 'codDeaf': 'DEAF-001'}, self.c1)
+        with self.assertRaises(r.ErrorCarga) as cm:
+            self.repo.importar_unidades(self.admin, [{'codDeaf': 'DEAF-001', 'nombre': 'Bueno', 'activo': True},
+                                                     {'codDeaf': 'NOEXISTE', 'nombre': 'Fantasma', 'activo': True},
+                                                     {'codDeaf': 'DEAF-001', 'nombre': 'bueno', 'activo': True},
+                                                     {'codDeaf': 'DEAF-001', 'nombre': 'X', 'activo': 'si'}])
+        self.assertEqual([n for n, _ in cm.exception.errores], [2, 3, 4])
+        self.assertEqual(len([u for u in self.repo.listar_unidades(self.admin) if u['Nombre'] == 'Bueno']), 0)
+
+    def test_subsector_repetido_en_un_contrato_se_rechaza_pero_no_entre_contratos(self):
+        with self.assertRaises(v.ErrorValidacion):
+            self.repo.guardar_unidad(self.admin, {'contratoId': self.c1, 'nombre': 'aeródromo norte'})
+        with self.assertRaises(v.ErrorValidacion):
+            self.repo.guardar_unidad(self.admin, {'contratoId': self.c1, 'nombre': 'AERÓDROMO NORTE'})     # acentos en mayúscula
+        self.repo.guardar_unidad(self.admin, {'contratoId': self.c2, 'nombre': 'Aeródromo Norte'})
+        self.repo.guardar_unidad(self.admin, {'contratoId': self.c1, 'nombre': 'Norte'})
+        with self.assertRaises(sqlite3.IntegrityError):                                                    # y la base lo impone (ASCII)
+            self.conn.execute("INSERT INTO Unidad (Id, ContratoId, Nombre) VALUES ('zz', ?, 'NORTE')", (self.c1,))
+        # renombrar su propia fila no cuenta como duplicado
+        self.repo.guardar_unidad(self.admin, {'contratoId': self.c1, 'nombre': 'Aeródromo Norte', 'activo': False}, self.u1)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

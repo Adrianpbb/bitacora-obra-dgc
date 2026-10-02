@@ -123,8 +123,8 @@ DIRECTORIO = [{'id': 'u_if1', 'name': 'Inés Fiscal'}, {'id': 'u_val', 'name': '
 
 def base():
     s = {
-        'contratos/c1': {'nombre': 'Red Aeroportuaria Austral', 'unidadLabel': 'Aeropuerto', 'inspectorNombre': 'Inés Fiscal', 'correoAprobador': 'jefe.depto@example.org'},
-        'contratos/c2': {'nombre': 'Teleférico Bicentenario', 'unidadLabel': 'Estación', 'inspectorNombre': 'Otro IF'},
+        'contratos/c1': {'nombre': 'Red Aeroportuaria Austral', 'codDeaf': 'DEAF-001', 'unidadLabel': 'Aeropuerto', 'inspectorNombre': 'Inés Fiscal', 'correoAprobador': 'jefe.depto@example.org'},
+        'contratos/c2': {'nombre': 'Teleférico Bicentenario', 'codDeaf': 'DEAF-002', 'unidadLabel': 'Estación', 'inspectorNombre': 'Otro IF'},
         'unidades/u1': {'contratoId': 'c1', 'nombre': 'Aeródromo ' + XSS, 'activo': True},
         'unidades/u2': {'contratoId': 'c2', 'nombre': 'SECRETO-C2-UNIDAD', 'activo': True},
         'hitos/h1': {'contratoId': 'c1', 'unidadId': 'u1', 'nombre': 'Ingeniería definitiva', 'tipo': 'Ingeniería', 'fechaContractual': d(-60)},
@@ -573,6 +573,191 @@ def escenario_admin(p):
         browser.close()
 
 
+def escenario_cargas_admin(p):
+    print('\nD2. Administrador: cargas por Excel/CSV y subsectores por contrato')
+    import openpyxl
+    tmpd = AQUI / '_tmp_cargas'
+    tmpd.mkdir(exist_ok=True)
+    CAB = ['COD_DEAF', 'NOMBRE_CONTRATO', 'TIPO_UNIDAD', 'IF_TITULAR', 'IF_SUPLENTE', 'CORREO_APROBADOR']
+
+    def xlsx(nombre, filas, cab=CAB):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'Contratos'
+        ws.append(cab)
+        for f in filas:
+            ws.append(f)
+        ruta = tmpd / nombre
+        wb.save(ruta)
+        return ruta
+
+    browser, page, errores = abrir(p, {'uid': 'u_admin', 'name': 'Admin Central', 'level': 'admin', 'seed': base()})
+    try:
+        ingresar(page)
+        tab(page, 'config')
+        # --- plantilla generada por la página, leída con una librería externa ---
+        with page.expect_download() as dl:
+            page.click('.js-plantilla[data-tipo=contratos][data-formato=xlsx]')
+        ruta = tmpd / 'plantilla.xlsx'
+        dl.value.save_as(ruta)
+        wb = openpyxl.load_workbook(ruta)
+        check('Plantilla .xlsx de contratos: abre en un lector externo con las 6 columnas', wb.sheetnames == ['Contratos', 'Instrucciones'] and [c.value for c in wb['Contratos'][1]] == CAB, wb.sheetnames)
+        with page.expect_download() as dl:
+            page.click('.js-plantilla[data-tipo=contratos][data-formato=csv]')
+        csv_txt = dl.value.path().read_bytes().decode('utf-8-sig')
+        check('Plantilla .csv con las mismas columnas', csv_txt.strip().split(';') == CAB, csv_txt)
+        page.set_input_files('#impContratosFile', str(ruta))
+        page.wait_for_selector('#impContratosBox .sol-rechazo')
+        check('Subir la plantilla vacía avisa que no hay filas', 'no tiene filas con datos' in page.inner_text('#impContratosBox'), page.inner_text('#impContratosBox'))
+
+        # --- archivo con errores: nada se importa y se ve cada error por fila ---
+        n = len(escrituras(page))
+        malo = xlsx('malo.xlsx', [
+            ['DEAF-003', 'Nuevo Contrato ' + XSS, 'Sector', 'IF Titular', '', 'nuevo@example.org'],
+            ['DEAF-001', 'Red Aeroportuaria Austral II', 'Aeropuerto', 'IF', '', 'x@example.org'],
+            ['DEAF-003', 'Duplicado', 'Sector', 'IF', '', 'd@example.org'],
+            ['', 'Sin código', 'Sector', 'IF', '', 'e@example.org'],
+            ['DEAF-005', 'Correo malo', 'Sector', 'IF', '', 'no-es-correo'],
+            ['DEAF-006', "=cmd|' /C calc'!A0", 'Sector', 'IF', '', 'f@example.org'],
+            ['DEAF-007', 'Sin correo', 'Sector', 'IF', '', ''],
+            ['DEAF 008!', 'Código raro', 'Sector', 'IF', '', 'g@example.org'],
+            ['DEAF-009', '+cmd', 'Sector', 'IF', '', 'h@example.org'],
+        ])
+        page.set_input_files('#impContratosFile', str(malo))
+        page.wait_for_selector('#impContratosBox table')
+        box = page.inner_text('#impContratosBox')
+        check('Vista previa: 7 filas con error contadas', '7 filas con errores' in box, box[:300])
+        for texto in ('COD_DEAF repetido en el archivo', 'COD_DEAF es obligatorio', 'CORREO_APROBADOR no es un correo válido', 'no puede comenzar con = + - @',
+                      'CORREO_APROBADOR es obligatorio', 'COD_DEAF solo admite letras'):
+            check('Error por fila: ' + texto, texto in box, box)
+        check('Errores indicados por número de fila de la hoja', page.locator('#impContratosBox tbody tr').nth(2).inner_text().startswith('4'), page.locator('#impContratosBox tbody tr').nth(2).inner_text())
+        check('Con errores, el botón de confirmar está bloqueado y no se escribió nada', page.is_disabled('#impContratosBox .js-imp-ok') and len(escrituras(page)) == n)
+        check('Contenido de las celdas escapado en la vista previa (sin XSS)', page.evaluate('window.__T.xss') == 0)
+        page.click('#impContratosBox .js-imp-no')
+        check('Cancelar limpia la vista previa', page.inner_text('#impContratosBox').strip() == '')
+
+        # --- archivo correcto: crea y actualiza por COD_DEAF; nada se borra ---
+        bueno = xlsx('bueno.xlsx', [
+            ['DEAF-003', 'Nuevo Contrato', 'Sector', 'IF Titular', 'IF Suplente', 'nuevo@example.org'],
+            ['deaf-001', 'Red Aeroportuaria Austral II', 'Aeropuerto', 'IF', '', 'x@example.org'],
+            [8, 'Contrato con código numérico', 'Hospital', 'IF', '', 'h@example.org'],
+            ['DEAF-002', 'Teleférico Bicentenario', 'Estación', 'Otro IF', '', ''],
+        ])
+        page.set_input_files('#impContratosFile', str(bueno))
+        page.wait_for_selector('#impContratosBox table')
+        box = page.inner_text('#impContratosBox')
+        check('Hay errores solo en la fila sin correo (DEAF-002 sigue sin correo aprobador)', '1 fila con errores' in box, box[:200])
+        bueno = xlsx('bueno.xlsx', [
+            ['DEAF-003', 'Nuevo Contrato', 'Sector', 'IF Titular', 'IF Suplente', 'nuevo@example.org'],
+            ['deaf-001', 'Red Aeroportuaria Austral II', 'Aeropuerto', 'IF', '', 'x@example.org'],
+            [8, 'Contrato con código numérico', 'Hospital', 'IF', '', 'h@example.org'],
+        ])
+        page.set_input_files('#impContratosFile', str(bueno))
+        page.wait_for_selector('#impContratosBox table')
+        box = page.inner_text('#impContratosBox')
+        check('Vista previa: 2 nuevos, 1 por actualizar (el COD_DEAF se compara sin distinguir mayúsculas)', '2 nuevos' in box and '1 por actualizar' in box and 'errores' not in box, box[:300])
+        n = len(escrituras(page))
+        page.click('#impContratosBox .js-imp-ok')
+        page.wait_for_function('([n]) => window.__T.writes.length >= n + 3', arg=[n], timeout=10000)
+        nuevas = escrituras(page)[n:]
+        upd = [w for w in nuevas if w['op'] == 'update']
+        crea = [w for w in nuevas if w['op'] == 'set' and w['path'].startswith('contratos/')]
+        check('Se actualiza el contrato existente por COD_DEAF sin tocar su estado "activo"', len(upd) == 1 and upd[0]['path'] == 'contratos/c1' and upd[0]['data']['nombre'] == 'Red Aeroportuaria Austral II' and 'activo' not in upd[0]['data'], upd)
+        check('Se crean los contratos nuevos con codDeaf (numérico como texto)', sorted(w['data']['codDeaf'] for w in crea) == ['8', 'DEAF-003'] and all(w['data']['activo'] is True for w in crea), crea)
+        check('Nada se borra y el otro contrato queda intacto', not any(w['op'] == 'delete' or w['path'] == 'contratos/c2' for w in nuevas))
+        check('Aviso de importación lista', 'Importación lista' in toast(page))
+        page.wait_for_selector('#cfContratos tr input.f-coddeaf[value="DEAF-003"]')
+        check('Los contratos importados aparecen en la tabla con su COD_DEAF', page.locator('#cfContratos tr').count() == 4)
+
+        # --- CSV de Excel en español: separador ';', comillas y BOM ---
+        csv = tmpd / 'contratos.csv'
+        csv.write_bytes(('\ufeffNOMBRE_CONTRATO;COD_DEAF;correo aprobador;IF_TITULAR;Tipo unidad\r\n"Contrato ""Norte""; con punto y coma";DEAF-020;n@example.org;IF Norte;Sector\r\n').encode('utf-8'))
+        page.set_input_files('#impContratosFile', str(csv))
+        page.wait_for_selector('#impContratosBox table')
+        box = page.inner_text('#impContratosBox')
+        check('CSV: reconoce separador ";", comillas, BOM y columnas en otro orden/nombre', 'Contrato "Norte"; con punto y coma' in box and '1 nuevo' in box and 'errores' not in box, box[:300])
+        page.click('#impContratosBox .js-imp-no')
+
+        # --- archivos inválidos ---
+        txt = tmpd / 'x.txt'; txt.write_text('hola')
+        page.set_input_files('#impContratosFile', str(txt))
+        page.wait_for_selector('#impContratosBox .sol-rechazo')
+        check('Formato no permitido', 'Formato no permitido' in page.inner_text('#impContratosBox'))
+        falso = tmpd / 'falso.xlsx'; falso.write_bytes(b'esto no es un zip' * 10)
+        page.set_input_files('#impContratosFile', str(falso))
+        page.wait_for_function("document.querySelector('#impContratosBox').innerText.includes('xlsx')")
+        check('.xlsx corrupto: mensaje claro, sin errores de JS', 'No se pudo leer' in page.inner_text('#impContratosBox') or 'no es un .xlsx válido' in page.inner_text('#impContratosBox'), page.inner_text('#impContratosBox'))
+        grande = tmpd / 'grande.csv'; grande.write_bytes(b'a' * (2 * 1024 * 1024 + 10))
+        page.set_input_files('#impContratosFile', str(grande))
+        page.wait_for_function("document.querySelector('#impContratosBox').innerText.includes('2 MB')")
+        check('Archivo de más de 2 MB rechazado', True)
+        sin_col = xlsx('sincol.xlsx', [['DEAF-050', 'X']], cab=['COD_DEAF', 'NOMBRE_CONTRATO'])
+        page.set_input_files('#impContratosFile', str(sin_col))
+        page.wait_for_function("document.querySelector('#impContratosBox').innerText.includes('Faltan columnas')")
+        check('Faltan columnas obligatorias: lo indica', 'TIPO_UNIDAD' in page.inner_text('#impContratosBox') and 'CORREO_APROBADOR' in page.inner_text('#impContratosBox'))
+
+        # --- subsectores: vista por contrato ---
+        check('Subsectores agrupados por contrato (uno por contrato)', page.locator('#cfUnidades details.uc').count() == 4)
+        c1 = '#cfUnidades details.uc[data-cid=c1]'
+        check('Cada subsector es editable en su fila', page.locator(c1 + ' tr[data-id=u1] .f-nombre').count() == 1 and page.locator(c1 + ' tr[data-id=u1] .f-activo').count() == 1)
+        n = len(escrituras(page))
+        page.fill(c1 + ' .f-nueva', 'Aeródromo ' + XSS)
+        page.click(c1 + ' .js-add-unidad')
+        check('No permite un subsector repetido en el mismo contrato', 'ya tiene un subsector' in toast(page) and len(escrituras(page)) == n)
+        page.fill(c1 + ' .f-nueva', 'Helipuerto Sur')
+        page.click(c1 + ' .js-add-unidad')
+        nuevas = esperar(page, 'unidades/', n)
+        check('Agregar subsector crea la unidad activa del contrato', nuevas[-1]['data'] == {'contratoId': 'c1', 'nombre': 'Helipuerto Sur', 'activo': True}, nuevas[-1])
+        n = len(escrituras(page))
+        page.uncheck(c1 + ' tr[data-id=u1] .f-activo')
+        page.click(c1 + ' tr[data-id=u1] .js-save')
+        nuevas = esperar(page, 'unidades/u1', n)
+        check('Desactivar = borrado lógico (guarda activo:false; no hay borrado)', nuevas[-1]['data']['activo'] is False and not any(w['op'] == 'delete' for w in escrituras(page)), nuevas[-1])
+        check('No hay botón para borrar subsectores', page.locator('#cfUnidades .js-del, #cfUnidades .js-unidad-del').count() == 0)
+
+        # --- carga de subsectores ---
+        with page.expect_download() as dl:
+            page.click('.js-plantilla[data-tipo=unidades][data-formato=xlsx]')
+        ru = tmpd / 'plantilla_u.xlsx'; dl.value.save_as(ru)
+        wb = openpyxl.load_workbook(ru)
+        check('Plantilla de subsectores: COD_DEAF, SUBSECTOR, ACTIVO', [c.value for c in wb.worksheets[0][1]] == ['COD_DEAF', 'SUBSECTOR', 'ACTIVO'], wb.sheetnames)
+        malo_u = xlsx('malo_u.xlsx', [
+            ['DEAF-001', 'Aeródromo Nuevo', 'SI'],
+            ['DEAF-001', 'aeródromo nuevo', 'SI'],
+            ['DEAF-999', 'Fantasma', 'SI'],
+            ['DEAF-001', 'Otro', 'quizá'],
+            ['DEAF-001', '', 'SI'],
+        ], cab=['COD_DEAF', 'SUBSECTOR', 'ACTIVO'])
+        page.set_input_files('#impUnidadesFile', str(malo_u))
+        page.wait_for_selector('#impUnidadesBox table')
+        box = page.inner_text('#impUnidadesBox')
+        check('Subsectores: errores por fila (repetido, contrato inexistente, ACTIVO, obligatorio)',
+              'Subsector repetido en el archivo' in box and 'El COD_DEAF no existe' in box and 'ACTIVO debe ser SI o NO' in box and 'SUBSECTOR es obligatorio' in box and page.is_disabled('#impUnidadesBox .js-imp-ok'), box)
+        bueno_u = xlsx('bueno_u.xlsx', [
+            ['DEAF-001', 'Aeródromo Nuevo', 'SI'],
+            ['DEAF-001', 'Helipuerto Sur', 'NO'],
+            ['DEAF-001', 'Aeródromo ' + XSS, 'SI'],
+            ['DEAF-002', 'Estación Cumbre', ''],
+            ['DEAF-002', 'SECRETO-C2-UNIDAD', 'SI'],
+        ], cab=['COD_DEAF', 'SUBSECTOR', 'ACTIVO'])
+        page.set_input_files('#impUnidadesFile', str(bueno_u))
+        page.wait_for_selector('#impUnidadesBox table')
+        box = page.inner_text('#impUnidadesBox')
+        check('Subsectores: 2 nuevos, 2 por actualizar (uno se reactiva), 1 sin cambios', '2 nuevos' in box and '2 por actualizar' in box and '1 sin cambios' in box and 'errores' not in box, box[:250])
+        n = len(escrituras(page))
+        page.click('#impUnidadesBox .js-imp-ok')
+        page.wait_for_function('([n]) => window.__T.writes.length >= n + 4', arg=[n], timeout=10000)
+        nuevas = escrituras(page)[n:]
+        check('Se crean los nuevos y solo se cambia "activo" en el existente (sin borrar nada)',
+              sorted(w['data']['nombre'] for w in nuevas if w['op'] == 'set') == ['Aeródromo Nuevo', 'Estación Cumbre']
+              and sorted(json.dumps(w['data']) for w in nuevas if w['op'] == 'update') == ['{"activo": false}', '{"activo": true}'] and not any(w['op'] == 'delete' for w in nuevas), nuevas)
+        check('Ninguna carga XSS y sin errores de JavaScript', page.evaluate('window.__T.xss') == 0 and not errores, errores)
+    finally:
+        browser.close()
+        import shutil
+        shutil.rmtree(tmpd, ignore_errors=True)
+
+
 def escenario_sin_perfil(p):
     print('\nE. Colaborador sin perfil asignado')
     browser, page, errores = abrir(p, {'uid': 'u_nuevo', 'name': 'Persona Nueva', 'level': 'interact', 'seed': base()})
@@ -642,6 +827,7 @@ if __name__ == '__main__':
         escenario_validador(p)
         escenario_gabinete(p)
         escenario_admin(p)
+        escenario_cargas_admin(p)
         escenario_sin_perfil(p)
         escenario_local(p)
     (AQUI / '_tmp_prueba.html').unlink(missing_ok=True)
