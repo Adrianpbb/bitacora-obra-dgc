@@ -608,3 +608,11 @@ cinco diagramas BPMN 2.0 con carriles por perfil más un carril Sistema, generad
 de las secciones 9–11. Bizagi Modeler no abre su formato propio (`.bpm`) desde fuera, por eso se entrega BPMN estándar
 (Archivo → Importar) y, de respaldo, SVG/PNG. Verificado: XML bien formado, sin referencias rotas y cada elemento en su carril;
 la importación real en Bizagi **no se pudo probar** (no está instalado en el equipo de desarrollo).
+
+## 13. Manual de procedimientos (2026-10-07)
+
+Carpeta `manual\`: `Manual de procedimientos - Bitacora de Obra.docx` (Word, 10 páginas), generado por `generar_manual.py` con los
+nombres de pestañas y botones de la pantalla v10.15. Capítulos: qué es y perfiles, cómo ingresar (modo local vs. servidor),
+procedimientos del IF/AIF, del Validador, de Gabinete y del Administrador, reglas del sistema, problemas frecuentes y glosario.
+Revisado exportándolo a PDF (portada, tablas y numeración correctas). **Mantenimiento:** si cambia un nombre de botón o un paso en
+la pantalla, hay que cambiarlo también en `generar_manual.py` y regenerar. Pendiente de validación por un usuario real (IF y Validador).

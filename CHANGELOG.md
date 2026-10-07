@@ -10,6 +10,10 @@ Formato de cada entrada: versión · fecha · commit — qué cambió · pruebas
 
 ---
 
+## v10.16 · 2026-10-07 — Manual de procedimientos
+- Carpeta `manual/` con el **Manual de procedimientos** en Word (10 páginas, editable): qué hace cada perfil (IF/AIF, Validador, Gabinete, Administrador), pasos para cada tarea con los nombres reales de pestañas y botones, reglas del sistema, problemas frecuentes y glosario.
+- Se genera con `manual/generar_manual.py` (python-docx). Sin cambios en la herramienta ni en el backend.
+
 ## v10.15 · 2026-10-07 — Diagramas BPMN para Bizagi
 - Carpeta `bizagi/` con 5 diagramas de proceso en BPMN 2.0 (`.bpmn`, importables en Bizagi Modeler) y su imagen (`.svg`/`.png`):
   avance físico, modificación de hitos desde el Gantt, problemáticas y alertas, carga y permisos del administrador, y mapa general.
