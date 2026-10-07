@@ -10,6 +10,12 @@ Formato de cada entrada: versión · fecha · commit — qué cambió · pruebas
 
 ---
 
+## v10.15 · 2026-10-07 — Diagramas BPMN para Bizagi
+- Carpeta `bizagi/` con 5 diagramas de proceso en BPMN 2.0 (`.bpmn`, importables en Bizagi Modeler) y su imagen (`.svg`/`.png`):
+  avance físico, modificación de hitos desde el Gantt, problemáticas y alertas, carga y permisos del administrador, y mapa general.
+- Carriles por perfil y un carril Sistema; cada paso lleva su regla en la documentación del elemento.
+- Se generan con `bizagi/generar_bpmn.py` (sin dependencias). Sin cambios en la herramienta ni en el backend.
+
 ## v10.14 · 2026-10-02 — Modo celular: nada se corta
 - **Celular (≤ 720 px)**: el banner deja de quedar fijo y se compacta; las pestañas pasan a varias líneas (antes se cortaban en el borde); el Gantt se muestra como **lista por sector** con las tres fechas de cada hito (se toca para modificarlo); ventanas emergentes a lo ancho; comparativos y filtros en una columna.
 - **Tablas → tarjetas automáticamente**: cualquier tabla que no cabe a lo ancho, o cuyos campos quedan apretados, se muestra como tarjetas "etiqueta: valor" (en celular, siempre). Vale para todas las tablas, también las futuras.

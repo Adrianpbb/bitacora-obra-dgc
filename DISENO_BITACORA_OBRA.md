@@ -599,3 +599,12 @@ Nuevas ideas del dueño del proyecto, trabajadas con commit por bloque y registr
   si no cabe o un campo queda apretado; con histéresis para no oscilar); Gantt en lista en celular (`renderGanttLista`); banner no fijo en celular;
   pestañas en varias líneas en todo tamaño. Límite: verificado en Chromium (escritorio y emulación de ancho); no probado en un teléfono físico ni en Safari/iOS.
 
+
+## 12. Diagramas de proceso para Bizagi (2026-10-07)
+
+Pedido del dueño del proyecto para mostrar el flujo de trabajo a la consultora (que evalúa implementar la Bitácora en su
+sistema, tras no poder montar servidor web ni motor SQL propios). Carpeta `bizagi\` (ver su `LEEME_BIZAGI.md`):
+cinco diagramas BPMN 2.0 con carriles por perfil más un carril Sistema, generados por `generar_bpmn.py` a partir de las reglas
+de las secciones 9–11. Bizagi Modeler no abre su formato propio (`.bpm`) desde fuera, por eso se entrega BPMN estándar
+(Archivo → Importar) y, de respaldo, SVG/PNG. Verificado: XML bien formado, sin referencias rotas y cada elemento en su carril;
+la importación real en Bizagi **no se pudo probar** (no está instalado en el equipo de desarrollo).

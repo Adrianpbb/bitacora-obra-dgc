@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Defs_Admin" targetNamespace="http://dgc.mop.cl/bitacora-obra" exporter="Bitacora de Obra DGC" exporterVersion="1.0">
+  <bpmn:collaboration id="Collab_Admin">
+    <bpmn:participant id="Pool_Admin" name="Carga de contratos, subsectores y permisos" processRef="Proc_Admin" />
+  </bpmn:collaboration>
+  <bpmn:process id="Proc_Admin" name="Carga de contratos, subsectores y permisos" isExecutable="false">
+    <bpmn:documentation>El Administrador carga contratos y subsectores por Excel/CSV (con plantilla), revisa la vista previa y confirma; luego asigna perfiles y contratos en Gestión de permisos.</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_Admin">
+      <bpmn:lane id="Lane_Admin_0" name="Administrador">
+        <bpmn:flowNodeRef>S</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T3</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T5</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T7</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T9</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E1</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Admin_1" name="Sistema">
+        <bpmn:flowNodeRef>T4</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>G1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T6</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T8</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T10</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="S" name="Cargar contratos o subsectores">
+      <bpmn:outgoing>F01</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="T1" name="Descargar plantilla (.xlsx o .csv)">
+      <bpmn:documentation>Contratos: COD_DEAF, NOMBRE_CONTRATO, TIPO_UNIDAD, IF_TITULAR, IF_SUPLENTE, CORREO_APROBADOR (también acepta correos del IF). Subsectores: COD_DEAF, SUBSECTOR, ACTIVO.</bpmn:documentation>
+      <bpmn:incoming>F01</bpmn:incoming>
+      <bpmn:outgoing>F02</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="T2" name="Completar plantilla">
+      <bpmn:incoming>F02</bpmn:incoming>
+      <bpmn:outgoing>F03</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="T3" name="Subir archivo">
+      <bpmn:incoming>F03</bpmn:incoming>
+      <bpmn:incoming>F07</bpmn:incoming>
+      <bpmn:outgoing>F04</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="T4" name="Validar archivo (tamaño, filas, COD_DEAF, correos)">
+      <bpmn:documentation>Máx. 2 MB, 500 filas, 30 columnas; COD_DEAF único y válido; correos válidos; ninguna celda empieza con = + - @. Lee solo la primera hoja y no evalúa fórmulas ni macros.</bpmn:documentation>
+      <bpmn:incoming>F04</bpmn:incoming>
+      <bpmn:outgoing>F05</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="G1" name="¿Hay errores?" gatewayDirection="Diverging">
+      <bpmn:incoming>F05</bpmn:incoming>
+      <bpmn:outgoing>F06</bpmn:outgoing>
+      <bpmn:outgoing>F08</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="T5" name="Corregir según errores por fila (no se importó nada)">
+      <bpmn:documentation>Si hay un solo error no se importa nada; la vista previa lista los errores por fila.</bpmn:documentation>
+      <bpmn:incoming>F06</bpmn:incoming>
+      <bpmn:outgoing>F07</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="T6" name="Mostrar vista previa: nuevos / por actualizar / sin cambios">
+      <bpmn:incoming>F08</bpmn:incoming>
+      <bpmn:outgoing>F09</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="T7" name="Confirmar importación">
+      <bpmn:incoming>F09</bpmn:incoming>
+      <bpmn:outgoing>F10</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="T8" name="Importar: crear nuevos y actualizar por COD_DEAF">
+      <bpmn:documentation>Importación atómica. Nunca se borra: el COD_DEAF existente se actualiza sin tocar &quot;activo&quot;.</bpmn:documentation>
+      <bpmn:incoming>F10</bpmn:incoming>
+      <bpmn:outgoing>F11</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="T9" name="Asignar perfil, contratos y rol Titular/Suplente">
+      <bpmn:documentation>Gestión de permisos: perfil (IF/AIF, Validador, Administrador, Gabinete), contratos con multiselección, rol Titular/Suplente por contrato y correo de la persona. Un IF suele tener máx. 2 contratos.</bpmn:documentation>
+      <bpmn:incoming>F11</bpmn:incoming>
+      <bpmn:outgoing>F12</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="T10" name="Guardar permiso (solo ids) y auditar">
+      <bpmn:documentation>Solo se guarda el id de la persona, nunca su nombre. Sin perfil asignado, una persona no puede entrar.</bpmn:documentation>
+      <bpmn:incoming>F12</bpmn:incoming>
+      <bpmn:outgoing>F13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="E1" name="Contratos, subsectores y permisos listos">
+      <bpmn:incoming>F13</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="F01" sourceRef="S" targetRef="T1" />
+    <bpmn:sequenceFlow id="F02" sourceRef="T1" targetRef="T2" />
+    <bpmn:sequenceFlow id="F03" sourceRef="T2" targetRef="T3" />
+    <bpmn:sequenceFlow id="F04" sourceRef="T3" targetRef="T4" />
+    <bpmn:sequenceFlow id="F05" sourceRef="T4" targetRef="G1" />
+    <bpmn:sequenceFlow id="F06" name="Sí" sourceRef="G1" targetRef="T5" />
+    <bpmn:sequenceFlow id="F07" sourceRef="T5" targetRef="T3" />
+    <bpmn:sequenceFlow id="F08" name="No" sourceRef="G1" targetRef="T6" />
+    <bpmn:sequenceFlow id="F09" sourceRef="T6" targetRef="T7" />
+    <bpmn:sequenceFlow id="F10" sourceRef="T7" targetRef="T8" />
+    <bpmn:sequenceFlow id="F11" sourceRef="T8" targetRef="T9" />
+    <bpmn:sequenceFlow id="F12" sourceRef="T9" targetRef="T10" />
+    <bpmn:sequenceFlow id="F13" sourceRef="T10" targetRef="E1" />
+    <bpmn:textAnnotation id="N1"><bpmn:text>Subsectores: vista contrato por contrato, editable por fila; alta y desactivación (borrado lógico).</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="As_N1" sourceRef="T2" targetRef="N1" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diag_Admin">
+    <bpmndi:BPMNPlane id="Plane_Admin" bpmnElement="Collab_Admin">
+      <bpmndi:BPMNShape id="Sh_Pool" bpmnElement="Pool_Admin" isHorizontal="true"><dc:Bounds x="20" y="20" width="2333" height="300" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_Lane0" bpmnElement="Lane_Admin_0" isHorizontal="true"><dc:Bounds x="50" y="20" width="2303" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_Lane1" bpmnElement="Lane_Admin_1" isHorizontal="true"><dc:Bounds x="50" y="170" width="2303" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_S" bpmnElement="S"><dc:Bounds x="167" y="77" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="130" y="117" width="110" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T1" bpmnElement="T1"><dc:Bounds x="300" y="53" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T2" bpmnElement="T2"><dc:Bounds x="490" y="53" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T3" bpmnElement="T3"><dc:Bounds x="680" y="53" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T4" bpmnElement="T4"><dc:Bounds x="870" y="203" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_G1" bpmnElement="G1" isMarkerVisible="true"><dc:Bounds x="1110" y="220" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1075" y="272" width="120" height="44" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T5" bpmnElement="T5"><dc:Bounds x="1060" y="53" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T6" bpmnElement="T6"><dc:Bounds x="1250" y="203" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T7" bpmnElement="T7"><dc:Bounds x="1440" y="53" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T8" bpmnElement="T8"><dc:Bounds x="1630" y="203" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T9" bpmnElement="T9"><dc:Bounds x="1820" y="53" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T10" bpmnElement="T10"><dc:Bounds x="2010" y="203" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_E1" bpmnElement="E1"><dc:Bounds x="2257" y="77" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2220" y="117" width="110" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_N1" bpmnElement="N1"><dc:Bounds x="389" y="213" width="200" height="64" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Ed_F01" bpmnElement="F01">
+        <di:waypoint x="203" y="95" />
+        <di:waypoint x="300" y="95" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F02" bpmnElement="F02">
+        <di:waypoint x="450" y="95" />
+        <di:waypoint x="490" y="95" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F03" bpmnElement="F03">
+        <di:waypoint x="640" y="95" />
+        <di:waypoint x="680" y="95" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F04" bpmnElement="F04">
+        <di:waypoint x="830" y="95" />
+        <di:waypoint x="850" y="95" />
+        <di:waypoint x="850" y="245" />
+        <di:waypoint x="870" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F05" bpmnElement="F05">
+        <di:waypoint x="1020" y="245" />
+        <di:waypoint x="1110" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F06" bpmnElement="F06">
+        <di:waypoint x="1135" y="220" />
+        <di:waypoint x="1135" y="137" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1141" y="170" width="19" height="16" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F07" bpmnElement="F07">
+        <di:waypoint x="1060" y="95" />
+        <di:waypoint x="830" y="95" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F08" bpmnElement="F08">
+        <di:waypoint x="1160" y="245" />
+        <di:waypoint x="1250" y="245" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1166" y="227" width="19" height="16" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F09" bpmnElement="F09">
+        <di:waypoint x="1400" y="245" />
+        <di:waypoint x="1420" y="245" />
+        <di:waypoint x="1420" y="95" />
+        <di:waypoint x="1440" y="95" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F10" bpmnElement="F10">
+        <di:waypoint x="1590" y="95" />
+        <di:waypoint x="1610" y="95" />
+        <di:waypoint x="1610" y="245" />
+        <di:waypoint x="1630" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F11" bpmnElement="F11">
+        <di:waypoint x="1780" y="245" />
+        <di:waypoint x="1800" y="245" />
+        <di:waypoint x="1800" y="95" />
+        <di:waypoint x="1820" y="95" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F12" bpmnElement="F12">
+        <di:waypoint x="1970" y="95" />
+        <di:waypoint x="1990" y="95" />
+        <di:waypoint x="1990" y="245" />
+        <di:waypoint x="2010" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F13" bpmnElement="F13">
+        <di:waypoint x="2160" y="245" />
+        <di:waypoint x="2208" y="245" />
+        <di:waypoint x="2208" y="95" />
+        <di:waypoint x="2257" y="95" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_As_N1" bpmnElement="As_N1"><di:waypoint x="489" y="213" /><di:waypoint x="490" y="95" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

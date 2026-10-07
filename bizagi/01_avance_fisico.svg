@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2183" height="660" viewBox="0 0 2183 660" font-family="Arial, Helvetica, sans-serif">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f3a5f"/></marker></defs>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<rect x="20" y="20" width="2143" height="600" fill="#fff" stroke="#1f3a5f" stroke-width="1.5"/>
+<rect x="20" y="20" width="30" height="600" fill="#1f3a5f"/>
+<text transform="translate(40,320) rotate(-90)" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold">Reporte y aprobación de avance físico</text>
+<rect x="50" y="20" width="2113" height="150" fill="#f4f8fd" stroke="#1f3a5f" stroke-width="1"/>
+<rect x="50" y="20" width="30" height="150" fill="#dbe7f5" stroke="#1f3a5f" stroke-width="1"/>
+<text transform="translate(69,95) rotate(-90)" text-anchor="middle" fill="#1f3a5f" font-size="12" font-weight="bold">IF / AIF</text>
+<rect x="50" y="170" width="2113" height="150" fill="#ffffff" stroke="#1f3a5f" stroke-width="1"/>
+<rect x="50" y="170" width="30" height="150" fill="#dbe7f5" stroke="#1f3a5f" stroke-width="1"/>
+<text transform="translate(69,245) rotate(-90)" text-anchor="middle" fill="#1f3a5f" font-size="12" font-weight="bold">Validador / Jefe de Depto.</text>
+<rect x="50" y="320" width="2113" height="150" fill="#f4f8fd" stroke="#1f3a5f" stroke-width="1"/>
+<rect x="50" y="320" width="30" height="150" fill="#dbe7f5" stroke="#1f3a5f" stroke-width="1"/>
+<text transform="translate(69,395) rotate(-90)" text-anchor="middle" fill="#1f3a5f" font-size="12" font-weight="bold">Sistema</text>
+<rect x="50" y="470" width="2113" height="150" fill="#ffffff" stroke="#1f3a5f" stroke-width="1"/>
+<rect x="50" y="470" width="30" height="150" fill="#dbe7f5" stroke="#1f3a5f" stroke-width="1"/>
+<text transform="translate(69,545) rotate(-90)" text-anchor="middle" fill="#1f3a5f" font-size="12" font-weight="bold">Gabinete</text>
+<polyline points="203,95 300,95" fill="none" stroke="#1f3a5f" stroke-width="1.6" marker-end="url(#ar)"/>
+<polyline points="450,95 470,95 470,395 490,395" fill="none" stroke="#1f3a5f" stroke-width="1.6" marker-end="url(#ar)"/>
+<polyline points="640,395 730,395" fill="none" stroke="#1f3a5f" stroke-width="1.6" marker-end="url(#ar)"/>
+<polyline points="755,370 755,137" fill="none" stroke="#1f3a5f" stroke-width="1.6" marker-end="url(#ar)"/>
+<text x="761" y="258" font-size="11" fill="#b03a2e" font-weight="bold">No</text>
+<polyline points="680,95 450,95" fill="none" stroke="#1f3a5f" stroke-width="1.6" marker-end="url(#ar)"/>
+<polyline points="780,395 945,395 945,137" fill="none" stroke="#1f3a5f" stroke-width="1.6" marker-end="url(#ar)"/>
+<text x="786" y="389" font-size="11" fill="#b03a2e" font-weight="bold">Sí</text>
+<polyline points="1020,95 1040,95 1040,395 1060,395" fill="none" stroke="#1f3a5f" stroke-width="1.6" marker-end="url(#ar)"/>
+<polyline points="1210,395 1230,395 1230,245 1250,245" fill="none" stroke="#1f3a5f" stroke-width="1.6" marker-end="url(#ar)"/>
+<polyline points="1400,245 1490,245" fill="none" stroke="#1f3a5f" stroke-width="1.6" marker-end="url(#ar)"/>
+<polyline points="1515,270 1515,395 1630,395" fill="none" stroke="#1f3a5f" stroke-width="1.6" marker-end="url(#ar)"/>
+<text x="1521" y="336" font-size="11" fill="#b03a2e" font-weight="bold">Aprobar</text>
+<polyline points="1540,245 1630,245" fill="none" stroke="#1f3a5f" stroke-width="1.6" marker-end="url(#ar)"/>
+<text x="1546" y="239" font-size="11" fill="#b03a2e" font-weight="bold">Rechazar</text>
+<polyline points="1780,395 1794,395 1794,545 1820,545" fill="none" stroke="#1f3a5f" stroke-width="1.6" marker-end="url(#ar)"/>
+<polyline points="1970,545 2067,545" fill="none" stroke="#1f3a5f" stroke-width="1.6" marker-end="url(#ar)"/>
+<polyline points="1780,245 1814,245 1814,395 1820,395" fill="none" stroke="#1f3a5f" stroke-width="1.6" marker-end="url(#ar)"/>
+<polyline points="1970,395 2018,395 2018,95 2067,95" fill="none" stroke="#1f3a5f" stroke-width="1.6" marker-end="url(#ar)"/>
+<line x1="1263" y1="95" x2="1020" y2="95" stroke="#888" stroke-dasharray="4 3"/>
+<line x1="1325" y1="513" x2="1325" y2="287" stroke="#888" stroke-dasharray="4 3"/>
+<circle cx="185" cy="95" r="17" fill="#fff" stroke="#2e7d32" stroke-width="1.8"/><text x="185" y="127" font-size="11" text-anchor="middle" fill="#14233a">Hay que reportar el</text><text x="185" y="139" font-size="11" text-anchor="middle" fill="#14233a">avance</text>
+<rect x="300" y="53" width="150" height="84" rx="8" fill="#e8f1fb" stroke="#1f3a5f" stroke-width="1.6"/><text x="306" y="67" font-size="11" fill="#5b6b82">☺</text><text x="375" y="85" font-size="11" text-anchor="middle" fill="#14233a">Ingresar sector,</text><text x="375" y="98" font-size="11" text-anchor="middle" fill="#14233a">avance % y fecha de</text><text x="375" y="111" font-size="11" text-anchor="middle" fill="#14233a">reporte</text>
+<rect x="490" y="353" width="150" height="84" rx="8" fill="#eef3ea" stroke="#1f3a5f" stroke-width="1.6"/><text x="496" y="367" font-size="11" fill="#5b6b82">⚙</text><text x="565" y="385" font-size="11" text-anchor="middle" fill="#14233a">Validar datos (0–100,</text><text x="565" y="398" font-size="11" text-anchor="middle" fill="#14233a">fecha, sin solicitud</text><text x="565" y="411" font-size="11" text-anchor="middle" fill="#14233a">activa)</text>
+<polygon points="755,370 780,395 755,420 730,395" fill="#fff8e1" stroke="#1f3a5f" stroke-width="1.6"/><path d="M746,386 L764,404 M764,386 L746,404" stroke="#1f3a5f" stroke-width="2.4"/><text x="755" y="434" font-size="11" text-anchor="middle" font-weight="bold" fill="#14233a">¿Datos válidos?</text>
+<rect x="680" y="53" width="150" height="84" rx="8" fill="#e8f1fb" stroke="#1f3a5f" stroke-width="1.6"/><text x="686" y="67" font-size="11" fill="#5b6b82">☺</text><text x="755" y="98" font-size="11" text-anchor="middle" fill="#14233a">Corregir datos</text>
+<rect x="870" y="53" width="150" height="84" rx="8" fill="#e8f1fb" stroke="#1f3a5f" stroke-width="1.6"/><text x="876" y="67" font-size="11" fill="#5b6b82">☺</text><text x="945" y="98" font-size="11" text-anchor="middle" fill="#14233a">Enviar a aprobación</text>
+<rect x="1060" y="353" width="150" height="84" rx="8" fill="#eef3ea" stroke="#1f3a5f" stroke-width="1.6"/><text x="1066" y="367" font-size="11" fill="#5b6b82">⚙</text><text x="1135" y="392" font-size="11" text-anchor="middle" fill="#14233a">Registrar solicitud y</text><text x="1135" y="404" font-size="11" text-anchor="middle" fill="#14233a">recibo de auditoría</text>
+<rect x="1250" y="203" width="150" height="84" rx="8" fill="#e8f1fb" stroke="#1f3a5f" stroke-width="1.6"/><text x="1256" y="217" font-size="11" fill="#5b6b82">☺</text><text x="1325" y="242" font-size="11" text-anchor="middle" fill="#14233a">Revisar: valor actual</text><text x="1325" y="254" font-size="11" text-anchor="middle" fill="#14233a">→ propuesto</text>
+<polygon points="1515,220 1540,245 1515,270 1490,245" fill="#fff8e1" stroke="#1f3a5f" stroke-width="1.6"/><path d="M1506,236 L1524,254 M1524,236 L1506,254" stroke="#1f3a5f" stroke-width="2.4"/><text x="1515" y="284" font-size="11" text-anchor="middle" font-weight="bold" fill="#14233a">¿Decisión?</text>
+<rect x="1630" y="353" width="150" height="84" rx="8" fill="#eef3ea" stroke="#1f3a5f" stroke-width="1.6"/><text x="1636" y="367" font-size="11" fill="#5b6b82">⚙</text><text x="1705" y="392" font-size="11" text-anchor="middle" fill="#14233a">Publicar dato oficial</text><text x="1705" y="404" font-size="11" text-anchor="middle" fill="#14233a">y guardar historial</text>
+<rect x="1820" y="503" width="150" height="84" rx="8" fill="#e8f1fb" stroke="#1f3a5f" stroke-width="1.6"/><text x="1826" y="517" font-size="11" fill="#5b6b82">☺</text><text x="1895" y="542" font-size="11" text-anchor="middle" fill="#14233a">Consultar avance y</text><text x="1895" y="554" font-size="11" text-anchor="middle" fill="#14233a">semáforo del contrato</text>
+<circle cx="2085" cy="545" r="17" fill="#fff" stroke="#b03a2e" stroke-width="4"/><text x="2085" y="577" font-size="11" text-anchor="middle" fill="#14233a">Avance oficial visible</text>
+<rect x="1630" y="203" width="150" height="84" rx="8" fill="#e8f1fb" stroke="#1f3a5f" stroke-width="1.6"/><text x="1636" y="217" font-size="11" fill="#5b6b82">☺</text><text x="1705" y="235" font-size="11" text-anchor="middle" fill="#14233a">Escribir comentario</text><text x="1705" y="248" font-size="11" text-anchor="middle" fill="#14233a">del rechazo (mín. 5</text><text x="1705" y="261" font-size="11" text-anchor="middle" fill="#14233a">caracteres)</text>
+<rect x="1820" y="353" width="150" height="84" rx="8" fill="#eef3ea" stroke="#1f3a5f" stroke-width="1.6"/><text x="1826" y="367" font-size="11" fill="#5b6b82">⚙</text><text x="1895" y="392" font-size="11" text-anchor="middle" fill="#14233a">Marcar RECHAZADO y</text><text x="1895" y="404" font-size="11" text-anchor="middle" fill="#14233a">avisar al IF</text>
+<circle cx="2085" cy="95" r="17" fill="#fff" stroke="#b03a2e" stroke-width="4"/><text x="2085" y="127" font-size="11" text-anchor="middle" fill="#14233a">Rechazada: el IF ve el</text><text x="2085" y="139" font-size="11" text-anchor="middle" fill="#14233a">motivo y puede</text><text x="2085" y="151" font-size="11" text-anchor="middle" fill="#14233a">reenviar</text>
+<path d="M1277,63 L1463,63 L1463,127 L1263,127 L1263,77 Z" fill="#fffde7" stroke="#b8a600"/><text x="1271" y="85" font-size="10" fill="#5d5400">Opcional: &quot;Avisar por correo al</text><text x="1271" y="97" font-size="10" fill="#5d5400">aprobador&quot; (mailto:). El IF puede</text><text x="1271" y="109" font-size="10" fill="#5d5400">cancelar mientras esté pendiente</text><text x="1271" y="121" font-size="10" fill="#5d5400">(ELIMINADO).</text>
+<path d="M1239,513 L1425,513 L1425,577 L1225,577 L1225,527 Z" fill="#fffde7" stroke="#b8a600"/><text x="1233" y="535" font-size="10" fill="#5d5400">Regla: nadie aprueba lo propio.</text><text x="1233" y="547" font-size="10" fill="#5d5400">Solo el Validador del contrato ve</text><text x="1233" y="559" font-size="10" fill="#5d5400">la solicitud.</text>
+</svg>

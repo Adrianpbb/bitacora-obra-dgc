@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Defs_Hitos" targetNamespace="http://dgc.mop.cl/bitacora-obra" exporter="Bitacora de Obra DGC" exporterVersion="1.0">
+  <bpmn:collaboration id="Collab_Hitos">
+    <bpmn:participant id="Pool_Hitos" name="Modificación de fechas de hitos desde el Gantt" processRef="Proc_Hitos" />
+  </bpmn:collaboration>
+  <bpmn:process id="Proc_Hitos" name="Modificación de fechas de hitos desde el Gantt" isExecutable="false">
+    <bpmn:documentation>El IF/AIF propone una nueva fecha programada (con justificación) o la fecha real de cumplimiento de un hito (Ingeniería, Inicio Físico, PSP, PSD) desde la carta Gantt; el Validador aprueba o rechaza.</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_Hitos">
+      <bpmn:lane id="Lane_Hitos_0" name="IF / AIF">
+        <bpmn:flowNodeRef>S</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T4</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T5</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E2</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Hitos_1" name="Validador / Jefe de Depto.">
+        <bpmn:flowNodeRef>T7</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>G2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T10</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Hitos_2" name="Sistema">
+        <bpmn:flowNodeRef>T3</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>G1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T6</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T8</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T11</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Hitos_3" name="Gabinete">
+        <bpmn:flowNodeRef>T9</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E1</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="S" name="Cambia la fecha de un hito">
+      <bpmn:outgoing>F01</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="T1" name="Abrir Modificar hitos (Gantt) y hacer clic en el hito">
+      <bpmn:documentation>Cargar información &gt; Modificar hitos. El Gantt muestra solo datos oficiales: fecha contractual (rombo), programada vigente (cuadrado), real (círculo), línea de hoy y color por estado (cumplido, en plazo, con desvío, atrasado).</bpmn:documentation>
+      <bpmn:incoming>F01</bpmn:incoming>
+      <bpmn:outgoing>F02</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="T2" name="Indicar nueva fecha programada o fecha real">
+      <bpmn:documentation>Popup del hito: nueva fecha programada (justificación obligatoria) o fecha real de cumplimiento (no puede ser futura).</bpmn:documentation>
+      <bpmn:incoming>F02</bpmn:incoming>
+      <bpmn:incoming>F06</bpmn:incoming>
+      <bpmn:outgoing>F03</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="T3" name="Validar fecha, justificación y solicitud única">
+      <bpmn:documentation>Reglas: fecha_programada exige justificación; fecha_real no puede ser futura; una sola solicitud activa por hito.</bpmn:documentation>
+      <bpmn:incoming>F03</bpmn:incoming>
+      <bpmn:outgoing>F04</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="G1" name="¿Datos válidos?" gatewayDirection="Diverging">
+      <bpmn:incoming>F04</bpmn:incoming>
+      <bpmn:outgoing>F05</bpmn:outgoing>
+      <bpmn:outgoing>F07</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="T4" name="Corregir datos">
+      <bpmn:incoming>F05</bpmn:incoming>
+      <bpmn:outgoing>F06</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="T5" name="Enviar a aprobación">
+      <bpmn:documentation>Pasa a PENDIENTE_APROBACION. Opcional: &quot;Avisar por correo al aprobador&quot; (mailto:, el correo del aprobador se define por contrato).</bpmn:documentation>
+      <bpmn:incoming>F07</bpmn:incoming>
+      <bpmn:outgoing>F08</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="T6" name="Registrar solicitud y recibo de auditoría">
+      <bpmn:incoming>F08</bpmn:incoming>
+      <bpmn:outgoing>F09</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="T7" name="Revisar: Contrato / Sector / Hito, fecha vigente → propuesta">
+      <bpmn:documentation>La tarjeta muestra con letra grande Contrato, Sector y Hito a modificar; luego la fecha vigente, la propuesta y la justificación.</bpmn:documentation>
+      <bpmn:incoming>F09</bpmn:incoming>
+      <bpmn:outgoing>F10</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="G2" name="¿Decisión?" gatewayDirection="Diverging">
+      <bpmn:incoming>F10</bpmn:incoming>
+      <bpmn:outgoing>F11</bpmn:outgoing>
+      <bpmn:outgoing>F12</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="T8" name="Actualizar hito oficial; recalcular desvío y semáforo">
+      <bpmn:documentation>Se guarda la fecha oficial y el historial (fecha anterior → nueva). El &quot;antes&quot; de un hito sin fecha vigente previa es la fecha contractual. Se recalculan desvío vs. contrato, semáforo y radar.</bpmn:documentation>
+      <bpmn:incoming>F11</bpmn:incoming>
+      <bpmn:outgoing>F13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="T9" name="Ver en &quot;Últimas aprobaciones&quot; y en el radar">
+      <bpmn:incoming>F13</bpmn:incoming>
+      <bpmn:outgoing>F14</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="E1" name="Hito actualizado y visible">
+      <bpmn:incoming>F14</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="T10" name="Escribir comentario del rechazo (mín. 5 caracteres)">
+      <bpmn:incoming>F12</bpmn:incoming>
+      <bpmn:outgoing>F15</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="T11" name="Marcar RECHAZADO y avisar al IF">
+      <bpmn:incoming>F15</bpmn:incoming>
+      <bpmn:outgoing>F16</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="E2" name="Rechazada: el IF ve el motivo en la campanita">
+      <bpmn:incoming>F16</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="F01" sourceRef="S" targetRef="T1" />
+    <bpmn:sequenceFlow id="F02" sourceRef="T1" targetRef="T2" />
+    <bpmn:sequenceFlow id="F03" sourceRef="T2" targetRef="T3" />
+    <bpmn:sequenceFlow id="F04" sourceRef="T3" targetRef="G1" />
+    <bpmn:sequenceFlow id="F05" name="No" sourceRef="G1" targetRef="T4" />
+    <bpmn:sequenceFlow id="F06" sourceRef="T4" targetRef="T2" />
+    <bpmn:sequenceFlow id="F07" name="Sí" sourceRef="G1" targetRef="T5" />
+    <bpmn:sequenceFlow id="F08" sourceRef="T5" targetRef="T6" />
+    <bpmn:sequenceFlow id="F09" sourceRef="T6" targetRef="T7" />
+    <bpmn:sequenceFlow id="F10" sourceRef="T7" targetRef="G2" />
+    <bpmn:sequenceFlow id="F11" name="Aprobar" sourceRef="G2" targetRef="T8" />
+    <bpmn:sequenceFlow id="F12" name="Rechazar" sourceRef="G2" targetRef="T10" />
+    <bpmn:sequenceFlow id="F13" sourceRef="T8" targetRef="T9" />
+    <bpmn:sequenceFlow id="F14" sourceRef="T9" targetRef="E1" />
+    <bpmn:sequenceFlow id="F15" sourceRef="T10" targetRef="T11" />
+    <bpmn:sequenceFlow id="F16" sourceRef="T11" targetRef="E2" />
+    <bpmn:textAnnotation id="N1"><bpmn:text>Después de decidir se ofrece &quot;Avisar por correo al IF&quot; (mailto:); el rechazo lleva el comentario.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="As_N1" sourceRef="T7" targetRef="N1" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diag_Hitos">
+    <bpmndi:BPMNPlane id="Plane_Hitos" bpmnElement="Collab_Hitos">
+      <bpmndi:BPMNShape id="Sh_Pool" bpmnElement="Pool_Hitos" isHorizontal="true"><dc:Bounds x="20" y="20" width="2333" height="600" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_Lane0" bpmnElement="Lane_Hitos_0" isHorizontal="true"><dc:Bounds x="50" y="20" width="2303" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_Lane1" bpmnElement="Lane_Hitos_1" isHorizontal="true"><dc:Bounds x="50" y="170" width="2303" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_Lane2" bpmnElement="Lane_Hitos_2" isHorizontal="true"><dc:Bounds x="50" y="320" width="2303" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_Lane3" bpmnElement="Lane_Hitos_3" isHorizontal="true"><dc:Bounds x="50" y="470" width="2303" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_S" bpmnElement="S"><dc:Bounds x="167" y="77" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="130" y="117" width="110" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T1" bpmnElement="T1"><dc:Bounds x="300" y="53" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T2" bpmnElement="T2"><dc:Bounds x="490" y="53" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T3" bpmnElement="T3"><dc:Bounds x="680" y="353" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_G1" bpmnElement="G1" isMarkerVisible="true"><dc:Bounds x="920" y="370" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="885" y="422" width="120" height="44" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T4" bpmnElement="T4"><dc:Bounds x="870" y="53" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T5" bpmnElement="T5"><dc:Bounds x="1060" y="53" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T6" bpmnElement="T6"><dc:Bounds x="1250" y="353" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T7" bpmnElement="T7"><dc:Bounds x="1440" y="203" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_G2" bpmnElement="G2" isMarkerVisible="true"><dc:Bounds x="1680" y="220" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1645" y="272" width="120" height="44" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T8" bpmnElement="T8"><dc:Bounds x="1820" y="353" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T9" bpmnElement="T9"><dc:Bounds x="2010" y="503" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_E1" bpmnElement="E1"><dc:Bounds x="2257" y="527" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2220" y="567" width="110" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T10" bpmnElement="T10"><dc:Bounds x="1820" y="203" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_T11" bpmnElement="T11"><dc:Bounds x="2010" y="353" width="150" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_E2" bpmnElement="E2"><dc:Bounds x="2257" y="77" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2220" y="117" width="110" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sh_N1" bpmnElement="N1"><dc:Bounds x="1415" y="513" width="200" height="64" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Ed_F01" bpmnElement="F01">
+        <di:waypoint x="203" y="95" />
+        <di:waypoint x="300" y="95" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F02" bpmnElement="F02">
+        <di:waypoint x="450" y="95" />
+        <di:waypoint x="490" y="95" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F03" bpmnElement="F03">
+        <di:waypoint x="640" y="95" />
+        <di:waypoint x="660" y="95" />
+        <di:waypoint x="660" y="395" />
+        <di:waypoint x="680" y="395" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F04" bpmnElement="F04">
+        <di:waypoint x="830" y="395" />
+        <di:waypoint x="920" y="395" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F05" bpmnElement="F05">
+        <di:waypoint x="945" y="370" />
+        <di:waypoint x="945" y="137" />
+        <bpmndi:BPMNLabel><dc:Bounds x="951" y="245" width="19" height="16" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F06" bpmnElement="F06">
+        <di:waypoint x="870" y="95" />
+        <di:waypoint x="640" y="95" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F07" bpmnElement="F07">
+        <di:waypoint x="970" y="395" />
+        <di:waypoint x="1135" y="395" />
+        <di:waypoint x="1135" y="137" />
+        <bpmndi:BPMNLabel><dc:Bounds x="976" y="377" width="19" height="16" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F08" bpmnElement="F08">
+        <di:waypoint x="1210" y="95" />
+        <di:waypoint x="1230" y="95" />
+        <di:waypoint x="1230" y="395" />
+        <di:waypoint x="1250" y="395" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F09" bpmnElement="F09">
+        <di:waypoint x="1400" y="395" />
+        <di:waypoint x="1420" y="395" />
+        <di:waypoint x="1420" y="245" />
+        <di:waypoint x="1440" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F10" bpmnElement="F10">
+        <di:waypoint x="1590" y="245" />
+        <di:waypoint x="1680" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F11" bpmnElement="F11">
+        <di:waypoint x="1705" y="270" />
+        <di:waypoint x="1705" y="395" />
+        <di:waypoint x="1820" y="395" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1711" y="324" width="47" height="16" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F12" bpmnElement="F12">
+        <di:waypoint x="1730" y="245" />
+        <di:waypoint x="1820" y="245" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1736" y="227" width="52" height="16" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F13" bpmnElement="F13">
+        <di:waypoint x="1970" y="395" />
+        <di:waypoint x="1984" y="395" />
+        <di:waypoint x="1984" y="545" />
+        <di:waypoint x="2010" y="545" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F14" bpmnElement="F14">
+        <di:waypoint x="2160" y="545" />
+        <di:waypoint x="2257" y="545" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F15" bpmnElement="F15">
+        <di:waypoint x="1970" y="245" />
+        <di:waypoint x="2004" y="245" />
+        <di:waypoint x="2004" y="395" />
+        <di:waypoint x="2010" y="395" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_F16" bpmnElement="F16">
+        <di:waypoint x="2160" y="395" />
+        <di:waypoint x="2208" y="395" />
+        <di:waypoint x="2208" y="95" />
+        <di:waypoint x="2257" y="95" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Ed_As_N1" bpmnElement="As_N1"><di:waypoint x="1515" y="513" /><di:waypoint x="1515" y="287" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
