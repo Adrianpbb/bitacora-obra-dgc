@@ -616,3 +616,7 @@ nombres de pestañas y botones de la pantalla v10.15. Capítulos: qué es y perf
 procedimientos del IF/AIF, del Validador, de Gabinete y del Administrador, reglas del sistema, problemas frecuentes y glosario.
 Revisado exportándolo a PDF (portada, tablas y numeración correctas). **Mantenimiento:** si cambia un nombre de botón o un paso en
 la pantalla, hay que cambiarlo también en `generar_manual.py` y regenerar. Pendiente de validación por un usuario real (IF y Validador).
+
+**Actualización 2026-10-07 (v10.17):** el manual se reescribió como si el sistema ya estuviera en operación (sin modo local; ingreso con
+cuenta institucional) y se le intercalaron los cinco diagramas BPMN (hojas horizontales, cada diagrama partido en dos mitades). 19 páginas.
+Revisado exportándolo a PDF con Word. Sigue pendiente validarlo con un IF y un Validador reales.

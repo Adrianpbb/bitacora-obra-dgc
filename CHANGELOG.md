@@ -10,6 +10,11 @@ Formato de cada entrada: versión · fecha · commit — qué cambió · pruebas
 
 ---
 
+## v10.17 · 2026-10-07 — Manual de procedimientos redactado para el sistema en operación, con los diagramas intercalados
+- El manual (`manual/`, Word, 19 páginas) ya no habla de "modo local": está escrito como si la herramienta funcionara con cuenta institucional, perfiles asignados por el Administrador y datos compartidos.
+- Los 5 diagramas de Bizagi van dentro de los capítulos (mapa general en el capítulo 1; avance, hitos y problemáticas en el 3; carga y permisos en el 6), en hojas horizontales y partidos en dos mitades para que se lean impresos.
+- Nuevo capítulo 2 (ingreso, qué ve cada perfil, avisos por correo). Sin cambios en la herramienta ni en el backend.
+
 ## v10.16 · 2026-10-07 — Manual de procedimientos
 - Carpeta `manual/` con el **Manual de procedimientos** en Word (10 páginas, editable): qué hace cada perfil (IF/AIF, Validador, Gabinete, Administrador), pasos para cada tarea con los nombres reales de pestañas y botones, reglas del sistema, problemas frecuentes y glosario.
 - Se genera con `manual/generar_manual.py` (python-docx). Sin cambios en la herramienta ni en el backend.

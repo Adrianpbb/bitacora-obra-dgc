@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 pruebas/_tmp_prueba.html
+manual/_tmp/
+manual/_revision.pdf
+manual/~$*
